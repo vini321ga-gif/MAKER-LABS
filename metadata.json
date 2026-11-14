@@ -1,0 +1,6 @@
+{
+  "name": "PrecisionHub — Manufactura & Finanzas",
+  "description": "Sistema operativo de manufactura bajo demanda (Impresión 3D, Corte Láser, UV DTF) y control financiero en Quetzales con facturación SAT y persistencia SQLite / Cloudflare D1.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,244 @@
+---
+name: Precision Engineering & Commerce
+colors:
+  surface: '#f8f9ff'
+  surface-dim: '#cbdbf5'
+  surface-bright: '#f8f9ff'
+  surface-container-lowest: '#ffffff'
+  surface-container-low: '#eff4ff'
+  surface-container: '#e5eeff'
+  surface-container-high: '#dce9ff'
+  surface-container-highest: '#d3e4fe'
+  on-surface: '#0b1c30'
+  on-surface-variant: '#45464d'
+  inverse-surface: '#213145'
+  inverse-on-surface: '#eaf1ff'
+  outline: '#76777d'
+  outline-variant: '#c6c6cd'
+  surface-tint: '#565e74'
+  primary: '#000000'
+  on-primary: '#ffffff'
+  primary-container: '#131b2e'
+  on-primary-container: '#7c839b'
+  inverse-primary: '#bec6e0'
+  secondary: '#0051d5'
+  on-secondary: '#ffffff'
+  secondary-container: '#316bf3'
+  on-secondary-container: '#fefcff'
+  tertiary: '#000000'
+  on-tertiary: '#ffffff'
+  tertiary-container: '#002113'
+  on-tertiary-container: '#009668'
+  error: '#ba1a1a'
+  on-error: '#ffffff'
+  error-container: '#ffdad6'
+  on-error-container: '#93000a'
+  primary-fixed: '#dae2fd'
+  primary-fixed-dim: '#bec6e0'
+  on-primary-fixed: '#131b2e'
+  on-primary-fixed-variant: '#3f465c'
+  secondary-fixed: '#dbe1ff'
+  secondary-fixed-dim: '#b4c5ff'
+  on-secondary-fixed: '#00174b'
+  on-secondary-fixed-variant: '#003ea8'
+  tertiary-fixed: '#6ffbbe'
+  tertiary-fixed-dim: '#4edea3'
+  on-tertiary-fixed: '#002113'
+  on-tertiary-fixed-variant: '#005236'
+  background: '#f8f9ff'
+  on-background: '#0b1c30'
+  surface-variant: '#d3e4fe'
+typography:
+  display-lg:
+    fontFamily: Inter
+    fontSize: 36px
+    fontWeight: '600'
+    lineHeight: 44px
+    letterSpacing: -0.03em
+  display-lg-mobile:
+    fontFamily: Inter
+    fontSize: 28px
+    fontWeight: '600'
+    lineHeight: 36px
+    letterSpacing: -0.025em
+  headline-lg:
+    fontFamily: Inter
+    fontSize: 24px
+    fontWeight: '600'
+    lineHeight: 32px
+    letterSpacing: -0.02em
+  headline-md:
+    fontFamily: Inter
+    fontSize: 20px
+    fontWeight: '600'
+    lineHeight: 28px
+    letterSpacing: -0.015em
+  headline-sm:
+    fontFamily: Inter
+    fontSize: 16px
+    fontWeight: '600'
+    lineHeight: 24px
+    letterSpacing: -0.01em
+  body-lg:
+    fontFamily: Inter
+    fontSize: 16px
+    fontWeight: '400'
+    lineHeight: 24px
+    letterSpacing: -0.005em
+  body-md:
+    fontFamily: Inter
+    fontSize: 14px
+    fontWeight: '400'
+    lineHeight: 20px
+    letterSpacing: 0em
+  body-sm:
+    fontFamily: Inter
+    fontSize: 13px
+    fontWeight: '400'
+    lineHeight: 18px
+    letterSpacing: 0em
+  label-md:
+    fontFamily: Inter
+    fontSize: 13px
+    fontWeight: '500'
+    lineHeight: 18px
+    letterSpacing: 0em
+  label-sm:
+    fontFamily: Inter
+    fontSize: 11px
+    fontWeight: '600'
+    lineHeight: 16px
+    letterSpacing: 0.04em
+  metric-currency:
+    fontFamily: Inter
+    fontSize: 28px
+    fontWeight: '600'
+    lineHeight: 36px
+    letterSpacing: -0.02em
+  code-tabular:
+    fontFamily: Inter
+    fontSize: 13px
+    fontWeight: '500'
+    lineHeight: 20px
+    letterSpacing: -0.01em
+rounded:
+  sm: 0.25rem
+  DEFAULT: 0.5rem
+  md: 0.75rem
+  lg: 1rem
+  xl: 1.5rem
+  full: 9999px
+spacing:
+  gutter: 1.5rem
+  gutter-mobile: 1rem
+  margin: 2rem
+  margin-mobile: 1rem
+  space-xs: 0.25rem
+  space-sm: 0.5rem
+  space-md: 1rem
+  space-lg: 1.5rem
+  space-xl: 2rem
+---
+
+## Brand & Style
+
+This design system embodies the calculated precision, utilitarian beauty, and operational clarity required by high-velocity manufacturing and commercial engineering hubs. Drawing inspiration from modern benchmark developer tools and fintech interfaces—specifically Linear, Stripe, and Vercel—the visual ethos balances high-density data handling with airy, serene architectural restraint.
+
+### Target Audience & Tone
+Engineers, workshop operators, production planners, and finance directors managing on-demand manufacturing workflows (additive manufacturing, CNC, industrial laser cutting, and UV DTF printing). The interface prioritizes calm authority, tactile feedback, instantaneous legibility, and zero visual clutter.
+
+### Visual Style: Structured Modern Functionalism
+- **Micro-Contrast over Heavy Fill:** Depth and separation rely primarily on crisp hairline borders (1px) and muted fills rather than saturated backdrops or theatrical shadows.
+- **Instrument-Grade Discipline:** Layouts mimic professional telemetry consoles: monospace/tabular metrics, compact status tags, crisp compartmentalization, and disciplined data alignments.
+- **Whitespace as an Active Tool:** Spacious boundaries isolate critical financial ledgers and machine status queues, preventing cognitive fatigue during extended operational shifts.
+
+## Colors
+
+The palette establishes absolute contrast ratios, deliberate semantic hierarchy, and functional calm across high-density reporting views.
+
+### Architectural Canvas & Surfaces
+- **App Canvas:** `#F8FAFC` to `#F1F5F9`. A tranquil, desaturated ground that avoids the harshness of pure white while reducing screen glare.
+- **Surface & Cards:** Pure `#FFFFFF`. Elevates actionable items, tables, and metric cards cleanly above the canvas.
+- **Dividers & Hairlines:** `#E2E8F0`. Creates whisper-quiet structural containment.
+
+### Typography & Content
+- **Primary / High Emphasize:** Deep Carbon `#0F172A` (titles, lead metrics, active states) and Slate Carbon `#1E293B` (body text).
+- **Secondary / Subdued:** Graphite Slate `#64748B` for metadata, column headers, descriptive captions, and empty states.
+- **Muted / Placeholder:** `#94A3B8` for disabled states and input placeholders.
+
+### Semantic Instrumentation
+- **Success / Revenue (Emerald):** `#10B981` (Core), `#059669` (Dark/Hover), `#ECFDF5` (Soft Fill / Pill BG). Signifies paid orders, revenue inflows, nominal machine calibration, and completed jobs.
+- **Destructive / Outflow (Crimson):** `#EF4444` (Core), `#DC2626` (Dark/Hover), `#FEF2F2` (Soft Fill / Pill BG). Marks overhead expenses, printer head failures, stockouts, and cancellations.
+- **Attention / Production Pipeline (Amber):** `#F59E0B` (Core), `#D97706` (Dark/Hover), `#FFFBEB` (Soft Fill / Pill BG). Flags pending invoices, UV queue spooling, and warming beds.
+- **Informative / Tech Accent (Cobalt Blue):** `#2563EB` (Core), `#3B82F6` (Light Accent), `#EFF6FF` (Soft Fill / Pill BG). Dedicated to primary action cues, selected tabs, active fabrication telemetry, and documentation links.
+
+## Typography
+
+The typography system relies solely on **Inter** to deliver a unified, highly optimized typographic voice.
+
+### Key Rules
+- **Tabular Figures for Financials:** Always configure `font-feature-settings: "tnum" 1, "cv05" 1` for all monetary entries in Quetzales (e.g., `Q 12,450.00`), table cells, stock counts, and timestamps. This enforces perfect vertical scanning.
+- **Labels & Column Headers:** Render `label-sm` in all-caps with generous character spacing (`0.04em`) and medium/semibold weight (`#64748B`) to anchor dense table collections.
+- **Display Weights:** Never exceed `font-weight: 600` for titles. The editorial voice is technical and restrained, avoiding blocky or playful extrabolds.
+
+## Layout & Spacing
+
+The layout model balances high information density with breathing room, ensuring complex fabrication schedules and P&L sheets stay cleanly partitioned.
+
+### Grid & Composition
+- **Desktop (1024px+):** Fluid 12-column grid bound to a maximum width of `1600px` for ultra-wide displays. Gutter is locked at `1.5rem` (`24px`), section margins at `2rem` (`32px`).
+- **Sidebar Architecture:** A fixed 256px collapsible structural sidebar with immediate access to operations (3D Printing Queue, Laser Cutter Telemetry, DTF Inventory, Invoicing).
+- **Tablet (768px - 1023px):** 8-column layout. Sidebar collapses into an icon-rail (64px). Gutters shift to `1.25rem` (`20px`).
+- **Mobile (< 768px):** 4-column layout with standard `1rem` (`16px`) gutters and horizontal screen margin. Critical multi-column financial summaries collapse into stacked card carousels or swipeable horizontal tables.
+
+## Elevation & Depth
+
+Depth is treated as functional stratification rather than ornamentation. The system stays close to the physical surface, favoring ultra-refined hairline boundaries over heavy drop shadows.
+
+### Elevation Levels
+- **Level 0 (Floor Canvas):** Flat `#F8FAFC` or `#F1F5F9`. No shadow.
+- **Level 1 (Card & Module Surface):** Background `#FFFFFF`, bordered by `1px solid #E2E8F0`. Layered with micro-shadow `box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05)`.
+- **Level 2 (Hovered Cards & Interactive Rows):** `box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.06), 0 2px 4px -2px rgba(15, 23, 42, 0.04)`. Card border transitions subtly to `#CBD5E1`.
+- **Level 3 (Flyouts, Menus & Dropdowns):** Background `#FFFFFF`, border `1px solid #E2E8F0`, shadow `0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.03)`.
+- **Level 4 (Modals & Command Palette):** Backed by backdrop blur (`backdrop-filter: blur(4px)`) and overlay `rgba(15, 23, 42, 0.4)`. Modal container features deep ambient shadow `0 20px 25px -5px rgba(15, 23, 42, 0.12)`.
+
+## Shapes
+
+The geometry strikes an exact balance between modern industrial hardware and refined software design:
+- **Base Components (`rounded-md` / 0.5rem):** Standard buttons, single-line text inputs, search fields, and dropdown triggers.
+- **Containers & Surfaces (`rounded-lg` / 1rem and `rounded-xl` / 1.5rem):** Outer data tables, metric tiles, fabrication stage cards, and modal canvases.
+- **Tags & Status Badges (Pills):** Full circular caps (`rounded-full` / 9999px) for lifecycle and financial status pills to differentiate them immediately from interactive rectangular controls.
+
+## Components
+
+### Buttons
+- **Primary:** Background `#0F172A`, text `#FFFFFF`, hover `#1E293B`, border `1px solid transparent`. Height: 36px (compact) or 40px (regular). Text: `13px`, medium weight.
+- **Secondary / Neutral:** Background `#FFFFFF`, text `#0F172A`, border `1px solid #E2E8F0`, hover background `#F8FAFC`. Micro-shadow applied.
+- **Accent Action:** Background `#2563EB`, text `#FFFFFF`, hover `#1D4ED8`. Used for conversion actions (e.g., "Crear Orden de Producción").
+- **Destructive:** Background `#FEF2F2`, text `#DC2626`, border `1px solid #FCA5A5`, hover background `#FEE2E2`.
+
+### Status Badges & Pills
+- Always styled with high-contrast text over a tinted background:
+  - **Cobrado / Ingreso / Operativo:** `#ECFDF5` background, `#059669` text, `#A7F3D0` subtle border.
+  - **Pendiente / En Producción / Calentando:** `#FFFBEB` background, `#D97706` text, `#FDE68A` subtle border.
+  - **Alerta / Egreso / Mantenimiento:** `#FEF2F2` background, `#DC2626` text, `#FECACA` subtle border.
+  - **Neutro / Cola de Espera:** `#F1F5F9` background, `#475569` text, `#E2E8F0` subtle border.
+- Include a 6px solid dot indicator beside the status text.
+
+### Form Inputs & Search Fields
+- Height: 38px. Background `#FFFFFF`. Border: `1px solid #CBD5E1`.
+- Focus State: Border color `#2563EB` with an external 2px focus ring (`rgba(37, 99, 235, 0.15)`).
+- Prefix / Suffix adornments: Static background `#F8FAFC` for currency markers (e.g., `Q`) with monospace formatting.
+
+### Cards & Telemetry Tiles
+- Background `#FFFFFF`, `rounded-xl`, border `1px solid #E2E8F0`, padding `1.5rem`.
+- Structure: Small uppercase subtitle (`label-sm`), followed by tabular currency or progress value (`metric-currency`), finalized by dynamic delta badge (`+12.4% vs mes anterior`).
+
+### Data Tables (Work Orders & Financials)
+- Flush container with header row styled in `#F8FAFC`, uppercase graphite labels, `height: 40px`.
+- Row height: 48px to 52px. Row border bottom: `1px solid #F1F5F9`. Hover state: `#F8FAFC`.
+- All monetary metrics aligned flush-right with `code-tabular`.
+
+### Specialized Domain Components
+- **Machine Fleet Status Strip:** Segmented progress bar showing runtime status for 3D printers (layer height, bed temp), Laser (tube life, air assist), and UV DTF (ink levels: CMYK+W+Varnish).
+- **Quetzal Financial Switcher:** Toggle control to isolate split tax invoices (Factura SAT) vs. standard workshop production slips.
