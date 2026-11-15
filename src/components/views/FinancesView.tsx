@@ -101,8 +101,7 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
       e.entry_code.toLowerCase().includes(q) ||
       e.counterparty.toLowerCase().includes(q) ||
       e.description.toLowerCase().includes(q) ||
-      e.category.toLowerCase().includes(q) ||
-      false;
+      e.category.toLowerCase().includes(q);
     return matchesDoc && matchesType && matchesStatus && matchesSearch;
   });
 
@@ -302,7 +301,7 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
                         >
                           <Paperclip className="h-3.5 w-3.5" />
                         </button>
-                        {entry.status === 'pendiente' && (
+                        {entry.status === 'pendiente' && !entry.order_code && (
                           <button
                             type="button"
                             onClick={() => onUpdateEntry(entry.id, { status: 'cobrado' })}
@@ -329,7 +328,7 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
                 </tr>
                 {expandedAttachments === entry.id && (
                   <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
-                    <td colSpan={canEdit ? 10 : 9} className="px-5 py-3">
+                    <td colSpan={canEdit ? 7 : 6} className="px-5 py-3">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="text-[12px] text-[#475569]">
                           <span className="font-medium text-[#0F172A]">Documentos de {entry.entry_code}</span>
