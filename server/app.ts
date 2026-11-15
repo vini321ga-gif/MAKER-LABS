@@ -856,6 +856,39 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
     }
   });
 
+  app.post('/api/orders/:id/payments', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const id = Number(req.params.id);
+      const order = await db.queryOne<OrderPaymentOrder & { deleted_at?: string | null }>(
+        'SELECT id, order_code, client_name, client_nit, process_type, total_gtq, payment_status, deleted_at FROM work_orders WHERE id = ?',
+        [id]
+      );
+      if (!order || order.deleted_at) {
+        res.status(404).json({ error: 'Orden no encontrada o borrada' });
+        return;
+      }
+      const type = req.body?.type === 'full' ? 'full' : req.body?.type === 'advance' ? 'advance' : null;
+      const status = req.body?.status === 'pendiente' ? 'pendiente' : req.body?.status === 'cobrado' ? 'cobrado' : null;
+      if (!type || !status) {
+        res.status(400).json({ error: 'Seleccione un tipo de pago y un estado válido' });
+        return;
+      }
+      const result = await recordOrderPayment(
+        db,
+        order,
+        { type, status, amount: req.body?.amount === undefined ? undefined : Number(req.body.amount) },
+        req.user?.id || null
+      );
+      const updatedOrder = result.order;
+      res.status(201).json({
+        order: req.user?.role === 'operator' && updatedOrder ? hideFinancialOrderFields(updatedOrder) : updatedOrder,
+        payment: result.payment,
+      });
+    } catch (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : 'Error registrando pago' });
+    }
+  });
+
   app.patch('/api/orders/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = Number(req.params.id);
