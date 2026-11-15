@@ -357,6 +357,8 @@ export default function App() {
               onUpdateMachine={handleUpdateMachine}
               onUpdateOrder={handleUpdateOrder}
               onRegisterOrderPayment={handleRecordOrderPayment}
+              onDeleteOrder={handleDeleteOrder}
+              canDelete={user.role === 'admin'}
               onOpenNewOrder={() => openOrderModal('3d_printing')}
             />
           )}
