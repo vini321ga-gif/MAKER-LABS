@@ -244,7 +244,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                               Completar
                             </button>
                           )}
-                          {canViewFinancialDetails && order.payment_status === 'pendiente' && (
+                          {(order.payment_status === 'pendiente' || order.can_register_payment === true) && (
                             <button
                               type="button"
                               onClick={() => setAdvanceOrder(order)}
