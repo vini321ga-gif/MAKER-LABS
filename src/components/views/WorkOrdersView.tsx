@@ -144,6 +144,8 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                 {canViewFinancialDetails && (
                   <>
                     <th className="px-4 stitch-label-sm">Pago</th>
+                    <th className="px-4 stitch-label-sm text-right">Abonos (Q)</th>
+                    <th className="px-4 stitch-label-sm text-right">Saldo pendiente (Q)</th>
                     <th className="px-4 stitch-label-sm text-right">Total (Q)</th>
                   </>
                 )}
@@ -153,7 +155,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={canViewFinancialDetails ? 8 : 6} className="px-6 py-12 text-center text-[13px] text-[#64748B]">
+                  <td colSpan={canViewFinancialDetails ? 10 : 6} className="px-6 py-12 text-center text-[13px] text-[#64748B]">
                     No se encontraron órdenes con los criterios actuales.
                   </td>
                 </tr>
@@ -208,6 +210,12 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                     {canViewFinancialDetails && (
                       <>
                         <td className="px-4"><StatusPill {...getFinancialStatusBadge(order.payment_status)} /></td>
+                        <td className="px-4 text-right text-[13px] text-[#475569] tabular-metrics whitespace-nowrap">
+                          {formatQuetzales(order.amount_paid_gtq ?? (order.payment_status === 'cobrado' ? order.total_gtq : 0))}
+                        </td>
+                        <td className="px-4 text-right text-[13px] text-[#475569] tabular-metrics whitespace-nowrap">
+                          {formatQuetzales(order.balance_due_gtq ?? Math.max(0, order.total_gtq - (order.amount_paid_gtq ?? (order.payment_status === 'cobrado' ? order.total_gtq : 0))))}
+                        </td>
                         <td className="px-4 text-right text-[13px] font-semibold text-[#0F172A] tabular-metrics whitespace-nowrap">{formatQuetzales(order.total_gtq)}</td>
                       </>
                     )}
