@@ -53,6 +53,16 @@ function computeGuatemalanTotals(
   return { subtotal: total, iva: 0, total };
 }
 
+function hideFinancialOrderFields(order: Record<string, unknown>): Record<string, unknown> {
+  const sanitized = { ...order };
+  delete sanitized.unit_price_gtq;
+  delete sanitized.subtotal_gtq;
+  delete sanitized.iva_gtq;
+  delete sanitized.total_gtq;
+  delete sanitized.payment_status;
+  return sanitized;
+}
+
 async function attachAuth(db: AppDatabase, req: AuthenticatedRequest, _res: Response, next: NextFunction): Promise<void> {
   try {
     const sessionId = getSessionIdFromRequest(req);
@@ -351,7 +361,7 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
   }
 
   // System DB & Cloudflare D1 Status
-  app.get('/api/system/db-status', requireAuth, async (_req: AuthenticatedRequest, res: Response) => {
+  app.get('/api/system/db-status', requireAuth, requireRole('admin'), async (_req: AuthenticatedRequest, res: Response) => {
     try {
       const status = await db.getStatus();
       const tables = ['users', 'machines', 'work_orders', 'inventory_items', 'financial_entries', 'financial_attachments'] as const;
@@ -447,14 +457,17 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
       const docTypeFilter = String(req.query.doc_type || 'all');
       const hasDocFilter = docTypeFilter === 'factura_sat' || docTypeFilter === 'comprobante_taller';
 
-      const entries = hasDocFilter
-        ? await db.queryAll<Record<string, unknown>>(
-            'SELECT * FROM financial_entries WHERE doc_type = ? ORDER BY entry_date DESC, id DESC',
-            [docTypeFilter]
-          )
-        : await db.queryAll<Record<string, unknown>>(
-            'SELECT * FROM financial_entries ORDER BY entry_date DESC, id DESC'
-          );
+      const canViewBalances = req.user?.role === 'admin';
+      const entries = canViewBalances
+        ? hasDocFilter
+          ? await db.queryAll<Record<string, unknown>>(
+              'SELECT * FROM financial_entries WHERE doc_type = ? ORDER BY entry_date DESC, id DESC',
+              [docTypeFilter]
+            )
+          : await db.queryAll<Record<string, unknown>>(
+              'SELECT * FROM financial_entries ORDER BY entry_date DESC, id DESC'
+            )
+        : [];
 
       let collectedGtq = 0;
       let pendingGtq = 0;
@@ -493,11 +506,15 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
 
       res.json({
         kpis: {
-          collectedGtq: round2(collectedGtq),
-          pendingGtq: round2(pendingGtq),
-          expensesGtq: round2(expensesGtq),
-          netProfitGtq: round2(collectedGtq - expensesGtq),
-          ivaBalanceGtq: round2(Math.max(0, ivaDebitGtq - ivaCreditGtq)),
+          ...(canViewBalances
+            ? {
+                collectedGtq: round2(collectedGtq),
+                pendingGtq: round2(pendingGtq),
+                expensesGtq: round2(expensesGtq),
+                netProfitGtq: round2(collectedGtq - expensesGtq),
+                ivaBalanceGtq: round2(Math.max(0, ivaDebitGtq - ivaCreditGtq)),
+              }
+            : {}),
           activeOrdersCount: orders.filter((o) => o.production_status !== 'completado').length,
           completedOrdersCount: orders.filter((o) => o.production_status === 'completado').length,
         },
@@ -505,7 +522,9 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
           ...m,
           telemetry: JSON.parse(String(m.telemetry_json || '{}')),
         })),
-        recentOrders: orders.slice(0, 8),
+        recentOrders: orders.slice(0, 8).map((order) =>
+          req.user?.role === 'operator' ? hideFinancialOrderFields(order) : order
+        ),
         lowStockItems,
       });
     } catch (err) {
@@ -624,7 +643,9 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
         `SELECT * FROM work_orders ${whereClause} ORDER BY id DESC`,
         params
       );
-      res.json({ orders });
+      res.json({
+        orders: req.user?.role === 'operator' ? orders.map(hideFinancialOrderFields) : orders,
+      });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Error consultando órdenes' });
     }
@@ -727,7 +748,9 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
       const created = await db.queryOne<Record<string, unknown>>('SELECT * FROM work_orders WHERE id = ?', [
         insertRes.lastInsertRowid,
       ]);
-      res.status(201).json({ order: created });
+      res.status(201).json({
+        order: req.user?.role === 'operator' && created ? hideFinancialOrderFields(created) : created,
+      });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Error creando orden de producción' });
     }
@@ -742,22 +765,26 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
         return;
       }
 
+      const canEditFinancialFields = req.user?.role !== 'operator';
       const productionStatus = req.body?.production_status
         ? String(req.body.production_status)
         : String(existing.production_status);
-      const paymentStatus = req.body?.payment_status
-        ? String(req.body.payment_status)
-        : String(existing.payment_status);
+      const paymentStatus =
+        canEditFinancialFields && req.body?.payment_status
+          ? String(req.body.payment_status)
+          : String(existing.payment_status);
       const machineId = req.body?.machine_id !== undefined ? req.body.machine_id : existing.machine_id;
       const docType =
-        req.body?.doc_type === 'comprobante_taller' || req.body?.doc_type === 'factura_sat'
+        canEditFinancialFields && (req.body?.doc_type === 'comprobante_taller' || req.body?.doc_type === 'factura_sat')
           ? (req.body.doc_type as 'factura_sat' | 'comprobante_taller')
           : (String(existing.doc_type) as 'factura_sat' | 'comprobante_taller');
 
       const quantity =
-        req.body?.quantity !== undefined ? Math.max(1, Math.floor(Number(req.body.quantity))) : Number(existing.quantity);
+        canEditFinancialFields && req.body?.quantity !== undefined
+          ? Math.max(1, Math.floor(Number(req.body.quantity)))
+          : Number(existing.quantity);
       const unitPriceGtq =
-        req.body?.unit_price_gtq !== undefined
+        canEditFinancialFields && req.body?.unit_price_gtq !== undefined
           ? round2(Math.max(0.01, Number(req.body.unit_price_gtq)))
           : Number(existing.unit_price_gtq);
 
@@ -815,7 +842,9 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
       }
 
       const updated = await db.queryOne<Record<string, unknown>>('SELECT * FROM work_orders WHERE id = ?', [id]);
-      res.json({ order: updated });
+      res.json({
+        order: req.user?.role === 'operator' && updated ? hideFinancialOrderFields(updated) : updated,
+      });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Error actualizando orden' });
     }
@@ -969,6 +998,10 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
       const conditions: string[] = [];
       const params: (string | number | null)[] = [];
 
+      if (req.user?.role === 'operator') {
+        conditions.push('created_by = ?');
+        params.push(req.user?.id ?? 0);
+      }
       if (entryType !== 'all') {
         conditions.push('entry_type = ?');
         params.push(entryType);
@@ -1017,15 +1050,18 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
       }
 
       res.json({
-        summary: {
-          collectedGtq: round2(collectedGtq),
-          pendingGtq: round2(pendingGtq),
-          expensesGtq: round2(expensesGtq),
-          netMarginGtq: round2(collectedGtq - expensesGtq),
-          ivaDebitGtq: round2(ivaDebitGtq),
-          ivaCreditGtq: round2(ivaCreditGtq),
-          ivaNetPayableGtq: round2(Math.max(0, ivaDebitGtq - ivaCreditGtq)),
-        },
+        summary:
+          req.user?.role === 'admin'
+            ? {
+                collectedGtq: round2(collectedGtq),
+                pendingGtq: round2(pendingGtq),
+                expensesGtq: round2(expensesGtq),
+                netMarginGtq: round2(collectedGtq - expensesGtq),
+                ivaDebitGtq: round2(ivaDebitGtq),
+                ivaCreditGtq: round2(ivaCreditGtq),
+                ivaNetPayableGtq: round2(Math.max(0, ivaDebitGtq - ivaCreditGtq)),
+              }
+            : null,
         entries,
       });
     } catch (err) {
@@ -1033,7 +1069,7 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
     }
   });
 
-  app.post('/api/finances', requireAuth, requireRole('admin', 'finance'), async (req: AuthenticatedRequest, res: Response) => {
+  app.post('/api/finances', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const entryType = req.body?.entry_type === 'ingreso' ? 'ingreso' : 'egreso';
       const docType = req.body?.doc_type === 'comprobante_taller' ? 'comprobante_taller' : 'factura_sat';
