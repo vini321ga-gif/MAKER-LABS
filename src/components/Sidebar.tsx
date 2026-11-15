@@ -64,6 +64,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: 'Finanzas & Sistema',
       items: [
         { id: 'finances', label: 'Facturación y P&L (Q)', icon: Receipt },
+        { id: 'activity', label: 'Registro de actividad', icon: ClipboardList },
         { id: 'admin', label: 'Usuarios y Cloudflare D1', icon: Database },
       ],
     },
@@ -119,7 +120,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="px-2.5 mb-2 stitch-label-sm">{group.title}</div>
             )}
             <div className="space-y-1">
-              {group.items.filter((item) => item.id !== 'admin' || user.role === 'admin').map((item) => {
+              {group.items.filter((item) => (item.id !== 'admin' || user.role === 'admin') && (item.id !== 'activity' || user.role === 'admin' || user.role === 'finance')).map((item) => {
                 const Icon = item.icon;
                 const active = activeSection === item.id;
                 return (
