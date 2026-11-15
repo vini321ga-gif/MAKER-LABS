@@ -1,6 +1,6 @@
 import React from 'react';
 import { CheckCircle2, Play, Plus, Wind, Wrench, Zap } from 'lucide-react';
-import { formatMinutes } from '../../lib/format';
+import { formatMinutes, formatQuetzales } from '../../lib/format';
 import type { Machine, WorkOrder } from '../../types/workshop';
 import { getProductionStatusBadge, StatusPill } from '../StatusPill';
 
@@ -176,7 +176,13 @@ export const LaserTelemetryView: React.FC<LaserTelemetryViewProps> = ({
                 <th className="px-4 stitch-label-sm">Material</th>
                 <th className="px-4 stitch-label-sm">Tiempo</th>
                 <th className="px-4 stitch-label-sm">Estado</th>
-                {canViewFinancialDetails && <th className="px-4 stitch-label-sm text-right">Total (Q)</th>}
+                {canViewFinancialDetails && (
+                  <>
+                    <th className="px-4 stitch-label-sm text-right">Abonos (Q)</th>
+                    <th className="px-4 stitch-label-sm text-right">Saldo pendiente (Q)</th>
+                    <th className="px-4 stitch-label-sm text-right">Total (Q)</th>
+                  </>
+                )}
                 <th className="px-4 stitch-label-sm text-right">Acción</th>
               </tr>
             </thead>
@@ -200,9 +206,17 @@ export const LaserTelemetryView: React.FC<LaserTelemetryViewProps> = ({
                     <StatusPill {...getProductionStatusBadge(order.production_status)} />
                   </td>
                   {canViewFinancialDetails && (
-                    <td className="px-4 text-right text-[13px] font-medium text-[#0F172A] tabular-metrics">
-                      {formatQuetzales(order.total_gtq)}
-                    </td>
+                    <>
+                      <td className="px-4 text-right text-[13px] text-[#475569] tabular-metrics whitespace-nowrap">
+                        {formatQuetzales(order.amount_paid_gtq ?? (order.payment_status === 'cobrado' ? order.total_gtq : 0))}
+                      </td>
+                      <td className="px-4 text-right text-[13px] text-[#475569] tabular-metrics whitespace-nowrap">
+                        {formatQuetzales(order.balance_due_gtq ?? Math.max(0, order.total_gtq - (order.amount_paid_gtq ?? (order.payment_status === 'cobrado' ? order.total_gtq : 0))))}
+                      </td>
+                      <td className="px-4 text-right text-[13px] font-semibold text-[#0F172A] tabular-metrics whitespace-nowrap">
+                        {formatQuetzales(order.total_gtq)}
+                      </td>
+                    </>
                   )}
                   <td className="px-4 text-right">
                     {order.production_status !== 'completado' && (
