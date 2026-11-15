@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Menu, Plus, RefreshCw } from 'lucide-react';
+import { QuotesView } from './components/views/QuotesView';
 import { AuthScreen } from './components/AuthScreen';
 import { ExpenseModal } from './components/ExpenseModal';
 import { InventoryModal } from './components/InventoryModal';
@@ -39,6 +40,7 @@ const SECTION_TITLES: Record<NavSection, string> = {
   finances: 'Facturación y Finanzas',
   admin: 'Usuarios y Cloudflare D1',
   activity: 'Registro de actividad',
+  quotes: 'Cotizaciones',
 };
 
 export default function App() {
@@ -317,7 +319,7 @@ export default function App() {
               <Menu className="h-4 w-4" />
             </button>
             <div className="flex items-center gap-2 text-[13px] min-w-0">
-              <span className="text-[#64748B] hidden sm:inline">PrecisionHub</span>
+              <span className="text-[#64748B] hidden sm:inline">Maker Labs</span>
               <span className="text-[#CBD5E1] hidden sm:inline">/</span>
               <span className="font-semibold text-[#0F172A] truncate">
                 {SECTION_TITLES[activeSection]}
@@ -444,6 +446,10 @@ export default function App() {
               canCreate={canRegisterFinancialEntries}
               canViewBalances={canViewBalances}
             />
+          )}
+
+          {activeSection === 'quotes' && (user.role === 'admin' || user.role === 'finance') && (
+            <QuotesView />
           )}
 
           {activeSection === 'activity' && (user.role === 'admin' || user.role === 'finance') && (

@@ -82,3 +82,41 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #94A3B8;
 }
+
+
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  body,
+  html {
+    background: #ffffff !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .quote-print-area,
+  .quote-print-area * {
+    visibility: visible !important;
+  }
+
+  .quote-print-area {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .quote-no-print {
+    display: none !important;
+  }
+}

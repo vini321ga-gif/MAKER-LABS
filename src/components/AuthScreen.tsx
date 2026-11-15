@@ -42,7 +42,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
           </div>
           <div>
             <h1 className="text-[20px] font-semibold tracking-[-0.015em] text-[#0F172A] leading-7">
-              PrecisionHub
+              Maker Labs
             </h1>
             <p className="text-[13px] text-[#64748B]">
               Manufactura Aditiva, Corte Láser, UV DTF y Finanzas
