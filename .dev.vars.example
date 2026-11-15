@@ -1,0 +1,3 @@
+# Copy this file to .dev.vars for local Cloudflare Workers development.
+APP_ENV="development"
+# Set a unique random SESSION_SECRET in .dev.vars; do not commit it.
