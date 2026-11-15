@@ -7,17 +7,17 @@ interface AuthScreenProps {
   onSuccess: (user: User) => void;
 }
 
-const DEMO_ACCOUNTS = [
-  { label: 'Director / Admin', email: 'admin@fablab.gt', pass: 'Admin2026!', role: 'Control Total' },
-  { label: 'Operador Planta', email: 'operador@fablab.gt', pass: 'Operador2026!', role: '3D · Láser · DTF' },
-  { label: 'Finanzas SAT', email: 'finanzas@fablab.gt', pass: 'Finanzas2026!', role: 'Contabilidad Q' },
+const ACCESS_PROFILES = [
+  { label: 'Director / Admin', detail: 'Primera cuenta · Registro', role: 'Control Total' },
+  { label: 'Operador Planta', detail: 'Alta desde Usuarios y Roles', role: '3D · Láser · DTF' },
+  { label: 'Finanzas SAT', detail: 'Alta desde Usuarios y Roles', role: 'Contabilidad Q' },
 ];
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('admin@fablab.gt');
-  const [password, setPassword] = useState('Admin2026!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -162,10 +162,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
               </div>
             </div>
 
-            <button
+            <div
               type="submit"
               disabled={loading}
-              className="w-full h-10 rounded-lg bg-[#0F172A] hover:bg-[#1E293B] disabled:opacity-60 text-white text-[13px] font-medium flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              className="w-full h-10 rounded-lg bg-[#0F172A] hover:bg-[#1E293B] disabled:opacity-60 text-white text-[13px] font-medium flex items-center justify-center gap-2 transition-colors"
             >
               <span>
                 {loading
@@ -175,17 +175,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
                     : 'Registrar e Ingresar'}
               </span>
               <ArrowRight className="h-4 w-4" />
-            </button>
+            </div>
           </form>
 
           {mode === 'login' && (
             <div className="mt-6 pt-5 border-t border-[#E2E8F0]">
               <div className="flex items-center gap-1.5 mb-2.5">
                 <ShieldCheck className="h-3.5 w-3.5 text-[#2563EB]" />
-                <span className="stitch-label-sm">Perfiles de Prueba Pre-cargados</span>
+                <span className="stitch-label-sm">Perfiles de Acceso</span>
               </div>
               <div className="grid grid-cols-1 gap-2">
-                {DEMO_ACCOUNTS.map((acc) => (
+                {ACCESS_PROFILES.map((acc) => (
                   <button
                     key={acc.email}
                     type="button"
