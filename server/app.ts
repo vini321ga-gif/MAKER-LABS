@@ -1367,11 +1367,15 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
   app.delete('/api/finances/:id', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = Number(req.params.id);
-      const entry = await db.queryOne<{ order_code: string | null }>(
-        'SELECT order_code FROM financial_entries WHERE id = ?',
+      const reason = String(req.body?.reason || '').trim();
+      if (!reason) { res.status(400).json({ error: 'Escriba una justificación para eliminar el movimiento' }); return; }
+      const entry = await db.queryOne<{ order_code: string | null; entry_code: string; entry_type: string; category: string; description: string; total_gtq: number }>(
+        'SELECT order_code, entry_code, entry_type, category, description, total_gtq FROM financial_entries WHERE id = ?',
         [id]
       );
+      if (!entry) { res.status(404).json({ error: 'Movimiento financiero no encontrado' }); return; }
       await deleteFinancialEntry(db, files, id);
+      await writeActivity(db, req.user || undefined, 'financial_entry_deleted', 'financial_entry', id, entry.entry_code, entry.entry_type + ' de Q ' + Number(entry.total_gtq).toFixed(2) + ' · ' + entry.category + ' · ' + entry.description + '. Justificación: ' + reason);
 
       if (entry?.order_code) {
         const order = await db.queryOne<{ id: number; total_gtq: number; deleted_at: string | null }>(
