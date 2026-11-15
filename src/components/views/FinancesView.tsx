@@ -14,6 +14,8 @@ interface FinancesViewProps {
   onDeleteEntry: (id: number) => Promise<void>;
   onOpenNewEntry: () => void;
   canEdit: boolean;
+  canCreate: boolean;
+  canViewBalances: boolean;
 }
 
 export const FinancesView: React.FC<FinancesViewProps> = ({
@@ -24,6 +26,8 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
   onDeleteEntry,
   onOpenNewEntry,
   canEdit,
+  canCreate,
+  canViewBalances,
 }) => {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'ingreso' | 'egreso'>('all');
@@ -159,7 +163,7 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
             <Download className="h-4 w-4 text-[#64748B]" />
             Exportar CSV
           </button>
-          {canEdit && (
+          {canCreate && (
             <button
               type="button"
               onClick={onOpenNewEntry}
@@ -172,42 +176,46 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
         </div>
       </div>
 
-      {/* P&L + SAT IVA Summary Tiles */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-        <div className="stitch-card p-5">
-          <span className="stitch-label-sm">Ingresos Cobrados</span>
-          <div className="text-[22px] font-semibold text-[#059669] tabular-metrics mt-2">
-            {formatQuetzales(data.summary.collectedGtq)}
+      {canViewBalances && data.summary && (
+        <>
+        {/* P&L + SAT IVA Summary Tiles */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+          <div className="stitch-card p-5">
+            <span className="stitch-label-sm">Ingresos Cobrados</span>
+            <div className="text-[22px] font-semibold text-[#059669] tabular-metrics mt-2">
+              {formatQuetzales(data.summary.collectedGtq)}
+            </div>
+          </div>
+          <div className="stitch-card p-5">
+            <span className="stitch-label-sm">Por Cobrar</span>
+            <div className="text-[22px] font-semibold text-[#D97706] tabular-metrics mt-2">
+              {formatQuetzales(data.summary.pendingGtq)}
+            </div>
+          </div>
+          <div className="stitch-card p-5">
+            <span className="stitch-label-sm">Egresos Operativos</span>
+            <div className="text-[22px] font-semibold text-[#DC2626] tabular-metrics mt-2">
+              {formatQuetzales(data.summary.expensesGtq)}
+            </div>
+          </div>
+          <div className="stitch-card p-5">
+            <span className="stitch-label-sm">Margen Neto</span>
+            <div className="text-[22px] font-semibold text-[#0F172A] tabular-metrics mt-2">
+              {formatQuetzales(data.summary.netMarginGtq)}
+            </div>
+          </div>
+          <div className="stitch-card p-5">
+            <span className="stitch-label-sm">IVA Neto SAT (12%)</span>
+            <div className="text-[22px] font-semibold text-[#2563EB] tabular-metrics mt-2">
+              {formatQuetzales(data.summary.ivaNetPayableGtq)}
+            </div>
+            <div className="text-[11px] text-[#64748B] tabular-metrics mt-0.5">
+              Déb {formatQuetzales(data.summary.ivaDebitGtq)} · Créd {formatQuetzales(data.summary.ivaCreditGtq)}
+            </div>
           </div>
         </div>
-        <div className="stitch-card p-5">
-          <span className="stitch-label-sm">Por Cobrar</span>
-          <div className="text-[22px] font-semibold text-[#D97706] tabular-metrics mt-2">
-            {formatQuetzales(data.summary.pendingGtq)}
-          </div>
-        </div>
-        <div className="stitch-card p-5">
-          <span className="stitch-label-sm">Egresos Operativos</span>
-          <div className="text-[22px] font-semibold text-[#DC2626] tabular-metrics mt-2">
-            {formatQuetzales(data.summary.expensesGtq)}
-          </div>
-        </div>
-        <div className="stitch-card p-5">
-          <span className="stitch-label-sm">Margen Neto</span>
-          <div className="text-[22px] font-semibold text-[#0F172A] tabular-metrics mt-2">
-            {formatQuetzales(data.summary.netMarginGtq)}
-          </div>
-        </div>
-        <div className="stitch-card p-5">
-          <span className="stitch-label-sm">IVA Neto SAT (12%)</span>
-          <div className="text-[22px] font-semibold text-[#2563EB] tabular-metrics mt-2">
-            {formatQuetzales(data.summary.ivaNetPayableGtq)}
-          </div>
-          <div className="text-[11px] text-[#64748B] tabular-metrics mt-0.5">
-            Déb {formatQuetzales(data.summary.ivaDebitGtq)} · Créd {formatQuetzales(data.summary.ivaCreditGtq)}
-          </div>
-        </div>
-      </div>
+        </>
+      )}
 
       {/* Ledger Table */}
       <div className="stitch-card overflow-hidden">
