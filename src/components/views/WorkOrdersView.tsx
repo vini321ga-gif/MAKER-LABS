@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { api } from '../../lib/api';
 import { Eye, Plus, Search, Trash2, X } from 'lucide-react';
 import { formatMinutes, formatProcessLabel, formatQuetzales } from '../../lib/format';
 import type { DocTypeFilter, WorkOrder } from '../../types/workshop';
@@ -11,6 +12,7 @@ interface WorkOrdersViewProps {
   docFilter: DocTypeFilter;
   onChangeDocFilter: (next: DocTypeFilter) => void;
   onUpdateOrder: (id: number, payload: Partial<WorkOrder>) => Promise<void>;
+  onRegisterOrderPayment: (id: number, payload: { type: 'advance' | 'full'; status: 'pendiente' | 'cobrado'; amount?: number }) => Promise<unknown>;
   onDeleteOrder: (id: number) => Promise<void>;
   onOpenNewOrder: () => void;
   canDelete: boolean;
@@ -23,6 +25,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
   docFilter,
   onChangeDocFilter,
   onUpdateOrder,
+  onRegisterOrderPayment,
   onDeleteOrder,
   onOpenNewOrder,
   canDelete,
@@ -32,6 +35,11 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
   const [processFilter, setProcessFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
+  const [paymentType, setPaymentType] = useState<'advance' | 'full'>('advance');
+  const [paymentStatus, setPaymentStatus] = useState<'pendiente' | 'cobrado'>('cobrado');
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentBusy, setPaymentBusy] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
   const [showDeleted, setShowDeleted] = useState(false);
 
   const visibleOrders = showDeleted ? [...orders, ...deletedOrders] : orders;
