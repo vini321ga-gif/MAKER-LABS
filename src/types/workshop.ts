@@ -154,7 +154,7 @@ export interface FinancesPayload {
     ivaDebitGtq: number;
     ivaCreditGtq: number;
     ivaNetPayableGtq: number;
-  };
+  } | null;
   entries: FinancialEntry[];
 }
 
