@@ -934,7 +934,7 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
           db,
           { id: insertRes.lastInsertRowid, order_code: orderCode, client_name: clientName, client_nit: clientNit, process_type: processType, total_gtq: total, payment_status: paymentStatus },
           { type: initialPaymentType, status: initialPaymentStatus, amount: initialPaymentAmount },
-          req.user?.id || null
+          req.user || undefined
         );
       }
 
