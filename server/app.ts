@@ -1323,7 +1323,63 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
   app.delete('/api/finances/:id', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = Number(req.params.id);
+      const entry = await db.queryOne<{ order_code: string | null }>(
+        'SELECT order_code FROM financial_entries WHERE id = ?',
+        [id]
+      );
       await deleteFinancialEntry(db, files, id);
+
+      if (entry?.order_code) {
+        const order = await db.queryOne<{ id: number; total_gtq: number; deleted_at: string | null }>(
+          'SELECT id, total_gtq, deleted_at FROM work_orders WHERE order_code = ?',
+          [entry.order_code]
+        );
+        if (order && !order.deleted_at) {
+          const baselineCode = `FIN-${entry.order_code}`;
+          const remainingEntries = await db.queryAll<{ total_gtq: number; status: string }>(
+            'SELECT total_gtq, status FROM financial_entries WHERE order_code = ? AND entry_code <> ?',
+            [entry.order_code, baselineCode]
+          );
+          const allocated = remainingEntries
+            .filter((item) => item.status !== 'anulado')
+            .reduce((sum, item) => sum + Number(item.total_gtq || 0), 0);
+          const outstanding = round2(Math.max(0, Number(order.total_gtq) - allocated));
+          const baseline = await db.queryOne<{ id: number }>(
+            'SELECT id FROM financial_entries WHERE entry_code = ?',
+            [baselineCode]
+          );
+          if (baseline) {
+            await db.run(
+              'UPDATE financial_entries SET subtotal_gtq = ?, iva_gtq = 0, total_gtq = ?, status = ? WHERE id = ?',
+              [outstanding, outstanding, 'pendiente', baseline.id]
+            );
+          } else {
+            const orderInfo = await db.queryOne<{ client_name: string; client_nit: string; process_type: string; description: string; created_by: number | null }>(
+              'SELECT client_name, client_nit, process_type, description, created_by FROM work_orders WHERE id = ?',
+              [order.id]
+            );
+            const category = orderInfo?.process_type === '3d_printing' ? 'Impresión 3D' : orderInfo?.process_type === 'laser' ? 'Corte Láser' : 'Impresión UV DTF';
+            await db.run(
+              `INSERT INTO financial_entries (
+                entry_code, entry_type, doc_type, category, description, counterparty,
+                nit, order_code, subtotal_gtq, iva_gtq, total_gtq, status, entry_date, created_by
+              ) VALUES (?, 'ingreso', 'comprobante_taller', ?, ?, ?, ?, ?, ?, 0, ?, 'pendiente', ?, ?)`,
+              [
+                baselineCode, category, orderInfo?.description || `Saldo de orden ${entry.order_code}`,
+                orderInfo?.client_name || 'Cliente', orderInfo?.client_nit || 'CF', entry.order_code,
+                outstanding, outstanding, new Date().toISOString().slice(0, 10), orderInfo?.created_by || null,
+              ]
+            );
+          }
+          const paid = remainingEntries
+            .filter((item) => item.status === 'cobrado')
+            .reduce((sum, item) => sum + Number(item.total_gtq || 0), 0);
+          await db.run('UPDATE work_orders SET payment_status = ? WHERE id = ?', [
+            paid >= Number(order.total_gtq) ? 'cobrado' : 'pendiente',
+            order.id,
+          ]);
+        }
+      }
       res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Error eliminando movimiento' });
