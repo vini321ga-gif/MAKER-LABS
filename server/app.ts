@@ -452,16 +452,26 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
       requireRole('admin', 'finance'),
       async (req: AuthenticatedRequest, res: Response) => {
         try {
-          const attachment = await db.queryOne<{ object_key: string }>(
-            'SELECT object_key FROM financial_attachments WHERE id = ? AND financial_entry_id = ?',
+          const reason = String(req.body?.reason || '').trim();
+          if (!reason) { res.status(400).json({ error: 'Escriba una justificación para eliminar el adjunto' }); return; }
+          const attachment = await db.queryOne<{ object_key: string; original_name: string }>(
+            'SELECT object_key, original_name FROM financial_attachments WHERE id = ? AND financial_entry_id = ?',
             [req.params.attachmentId, Number(req.params.entryId)]
           );
           if (!attachment) {
             res.status(404).json({ error: 'Adjunto no encontrado' });
             return;
           }
+          const parent = await db.queryOne<{ entry_code: string }>(
+            'SELECT entry_code FROM financial_entries WHERE id = ?', [Number(req.params.entryId)]
+          );
           await files.delete(attachment.object_key);
           await db.run('DELETE FROM financial_attachments WHERE id = ?', [req.params.attachmentId]);
+          await writeActivity(
+            db, req.user || undefined, 'attachment_deleted', 'financial_attachment', req.params.attachmentId,
+            attachment.original_name,
+            'Adjunto de ' + (parent?.entry_code || req.params.entryId) + ' eliminado. Justificación: ' + reason
+          );
           res.json({ ok: true });
         } catch (err) {
           res.status(500).json({ error: err instanceof Error ? err.message : 'Error eliminando adjunto' });
@@ -474,7 +484,7 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
   app.get('/api/system/db-status', requireAuth, requireRole('admin'), async (_req: AuthenticatedRequest, res: Response) => {
     try {
       const status = await db.getStatus();
-      const tables = ['users', 'machines', 'work_orders', 'inventory_items', 'financial_entries', 'financial_attachments'] as const;
+      const tables = ['users', 'machines', 'work_orders', 'inventory_items', 'financial_entries', 'financial_attachments', 'activity_log'] as const;
       const counts: Record<string, number> = {};
       for (const table of tables) {
         const row = await db.queryOne<{ total: number }>(`SELECT COUNT(*) AS total FROM ${table}`);
