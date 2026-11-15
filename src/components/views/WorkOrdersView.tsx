@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { api } from '../../lib/api';
 import { Eye, Plus, Search, Trash2, X } from 'lucide-react';
 import { formatMinutes, formatProcessLabel, formatQuetzales } from '../../lib/format';
 import type { DocTypeFilter, WorkOrder } from '../../types/workshop';
@@ -99,7 +98,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar orden, cliente, NIT..."
+                placeholder="Buscar orden o cliente..."
                 className="stitch-input pl-8 pr-3 w-64"
               />
             </div>
@@ -145,8 +144,6 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                 {canViewFinancialDetails && (
                   <>
                     <th className="px-4 stitch-label-sm">Pago</th>
-                    <th className="px-4 stitch-label-sm text-right">Subtotal (Q)</th>
-                    <th className="px-4 stitch-label-sm text-right">IVA (Q)</th>
                     <th className="px-4 stitch-label-sm text-right">Total (Q)</th>
                   </>
                 )}
