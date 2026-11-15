@@ -948,7 +948,7 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
         db,
         order,
         { type, status, amount: req.body?.amount === undefined ? undefined : Number(req.body.amount) },
-        req.user?.id || null
+        req.user || undefined
       );
       const updatedOrder = result.order;
       res.status(201).json({
