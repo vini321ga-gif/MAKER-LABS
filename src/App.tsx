@@ -371,7 +371,7 @@ export default function App() {
               onChangeDocFilter={setDocFilter}
               onNavigate={setActiveSection}
               onOpenNewOrder={() => openOrderModal('3d_printing')}
-              onQuickMarkPaid={(o) => void handleRecordOrderPayment(o.id, { type: 'full', status: 'cobrado' }).catch((err) => notify('error', err instanceof Error ? err.message : 'Error registrando pago'))}
+              onQuickMarkPaid={(o) => handleRecordOrderPayment(o.id, { type: 'full', status: 'cobrado' })}
               onQuickAdvance={(o, amount, status) => handleRecordOrderPayment(o.id, { type: 'advance', amount, status })}
               onQuickCompleteOrder={(o) => handleUpdateOrder(o.id, { production_status: 'completado' })}
               canViewBalances={canViewBalances}
