@@ -199,14 +199,20 @@ export const Print3DQueueView: React.FC<Print3DQueueViewProps> = ({
                 <th className="px-4 stitch-label-sm">Material</th>
                 <th className="px-4 stitch-label-sm">Tiempo</th>
                 <th className="px-4 stitch-label-sm">Estado</th>
-                {canViewFinancialDetails && <th className="px-4 stitch-label-sm text-right">Importe (Q)</th>}
+                {canViewFinancialDetails && (
+                  <>
+                    <th className="px-4 stitch-label-sm text-right">Abonos (Q)</th>
+                    <th className="px-4 stitch-label-sm text-right">Saldo pendiente (Q)</th>
+                    <th className="px-4 stitch-label-sm text-right">Total (Q)</th>
+                  </>
+                )}
                 <th className="px-4 stitch-label-sm text-right">Control</th>
               </tr>
             </thead>
             <tbody>
               {printOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={canViewFinancialDetails ? 8 : 7} className="px-6 py-10 text-center text-[13px] text-[#64748B]">
+                  <td colSpan={canViewFinancialDetails ? 10 : 7} className="px-6 py-10 text-center text-[13px] text-[#64748B]">
                     No hay órdenes de impresión 3D registradas.
                   </td>
                 </tr>
@@ -232,9 +238,17 @@ export const Print3DQueueView: React.FC<Print3DQueueViewProps> = ({
                     <StatusPill {...getProductionStatusBadge(order.production_status)} />
                   </td>
                   {canViewFinancialDetails && (
-                    <td className="px-4 text-right text-[13px] font-medium text-[#0F172A] tabular-metrics whitespace-nowrap">
-                      {formatQuetzales(order.total_gtq)}
-                    </td>
+                    <>
+                      <td className="px-4 text-right text-[13px] text-[#475569] tabular-metrics whitespace-nowrap">
+                        {formatQuetzales(order.amount_paid_gtq ?? (order.payment_status === 'cobrado' ? order.total_gtq : 0))}
+                      </td>
+                      <td className="px-4 text-right text-[13px] text-[#475569] tabular-metrics whitespace-nowrap">
+                        {formatQuetzales(order.balance_due_gtq ?? Math.max(0, order.total_gtq - (order.amount_paid_gtq ?? (order.payment_status === 'cobrado' ? order.total_gtq : 0))))}
+                      </td>
+                      <td className="px-4 text-right text-[13px] font-semibold text-[#0F172A] tabular-metrics whitespace-nowrap">
+                        {formatQuetzales(order.total_gtq)}
+                      </td>
+                    </>
                   )}
                   <td className="px-4 text-right whitespace-nowrap">
                     <div className="inline-flex items-center gap-1.5">
