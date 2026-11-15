@@ -86,7 +86,7 @@
 
 @media print {
   @page {
-    margin: 14mm;
+    margin: 0;
   }
 
   body,
@@ -112,7 +112,7 @@
     border: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
-    padding: 0 !important;
+    padding: 14mm !important;
     background: #ffffff !important;
   }
 

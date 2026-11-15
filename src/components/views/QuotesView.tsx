@@ -208,7 +208,7 @@ export const QuotesView: React.FC = () => {
                   height={240}
                   className="h-28 w-28 shrink-0 rounded-lg object-contain bg-black print:bg-black"
                 />
-                <p className="text-[12px] text-[#64748B] mt-1">Manufactura aditiva · Corte láser · UV DTF</p>
+                
               </div>
               <div className="sm:text-right">
                 <div className="stitch-label-sm">Cotización</div>
