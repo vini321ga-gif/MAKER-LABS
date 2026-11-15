@@ -86,6 +86,8 @@ export interface WorkOrder {
   deleted_by_name?: string | null;
   deleted_reason?: string | null;
   can_register_payment?: boolean;
+  amount_paid_gtq?: number;
+  balance_due_gtq?: number;
   created_at: string;
 }
 
