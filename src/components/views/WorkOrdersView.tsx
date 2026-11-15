@@ -244,7 +244,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
       {/* Order Detail Modal */}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/40 backdrop-blur-[4px]">
-          <div className="w-full max-w-lg rounded-2xl bg-[#FFFFFF] border border-[#E2E8F0] shadow-[0_20px_25px_-5px_rgba(15,23,42,0.12)] overflow-hidden">
+          <div className="w-full max-w-lg max-h-[92vh] rounded-2xl bg-[#FFFFFF] border border-[#E2E8F0] shadow-[0_20px_25px_-5px_rgba(15,23,42,0.12)] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E8F0]">
               <div>
                 <span className="stitch-label-sm">Detalle de orden</span>
@@ -261,7 +261,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
               </button>
             </div>
 
-            <div className="p-6 space-y-4 text-[13px]">
+            <div className="p-6 space-y-4 text-[13px] overflow-y-auto">
               <div className="flex items-center justify-between">
                 <StatusPill {...getProductionStatusBadge(selectedOrder.production_status)} />
                 {canViewFinancialDetails && <StatusPill {...getFinancialStatusBadge(selectedOrder.payment_status)} />}
