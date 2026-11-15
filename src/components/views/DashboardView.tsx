@@ -21,6 +21,8 @@ interface DashboardViewProps {
   onOpenNewOrder: () => void;
   onQuickMarkPaid: (order: WorkOrder) => void;
   onQuickCompleteOrder: (order: WorkOrder) => void;
+  canViewBalances: boolean;
+  canViewFinancialDetails: boolean;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -32,6 +34,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenNewOrder,
   onQuickMarkPaid,
   onQuickCompleteOrder,
+  canViewBalances,
+  canViewFinancialDetails,
 }) => {
   if (loading && !data) {
     return (
@@ -64,7 +68,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div>
           <span className="stitch-label-sm">Consola Ejecutiva de Operaciones</span>
           <h2 className="text-[24px] font-semibold tracking-[-0.02em] text-[#0F172A] leading-8 mt-0.5">
-            Resumen Financiero y Producción
+            {canViewBalances ? 'Resumen Financiero y Producción' : 'Resumen de Producción'}
           </h2>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -80,61 +84,65 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* 4 Telemetry KPI Tiles */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
-        <div className="stitch-card stitch-card-interactive p-6">
-          <div className="flex items-center justify-between">
-            <span className="stitch-label-sm">Ingresos Cobrados</span>
-            <StatusPill label="Ingreso" variant="emerald" />
+      {canViewBalances && (
+        <>
+        {/* 4 Telemetry KPI Tiles */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+          <div className="stitch-card stitch-card-interactive p-6">
+            <div className="flex items-center justify-between">
+              <span className="stitch-label-sm">Ingresos Cobrados</span>
+              <StatusPill label="Ingreso" variant="emerald" />
+            </div>
+            <div className="mt-3 text-[28px] font-semibold leading-9 tracking-[-0.02em] text-[#0F172A] tabular-metrics">
+              {formatQuetzales(kpis.collectedGtq)}
+            </div>
+            <div className="mt-2 flex items-center gap-1.5 text-[12px] text-[#059669] font-medium tabular-metrics">
+              <TrendingUp className="h-3.5 w-3.5" />
+              <span>+12.4% vs mes anterior</span>
+            </div>
           </div>
-          <div className="mt-3 text-[28px] font-semibold leading-9 tracking-[-0.02em] text-[#0F172A] tabular-metrics">
-            {formatQuetzales(kpis.collectedGtq)}
+  
+          <div className="stitch-card stitch-card-interactive p-6">
+            <div className="flex items-center justify-between">
+              <span className="stitch-label-sm">Pendiente de Cobro</span>
+              <StatusPill label="Pendiente" variant="amber" />
+            </div>
+            <div className="mt-3 text-[28px] font-semibold leading-9 tracking-[-0.02em] text-[#0F172A] tabular-metrics">
+              {formatQuetzales(kpis.pendingGtq)}
+            </div>
+            <div className="mt-2 text-[12px] text-[#64748B] tabular-metrics">
+              {kpis.activeOrdersCount} órdenes en flujo operativo
+            </div>
           </div>
-          <div className="mt-2 flex items-center gap-1.5 text-[12px] text-[#059669] font-medium tabular-metrics">
-            <TrendingUp className="h-3.5 w-3.5" />
-            <span>+12.4% vs mes anterior</span>
+  
+          <div className="stitch-card stitch-card-interactive p-6">
+            <div className="flex items-center justify-between">
+              <span className="stitch-label-sm">Egresos Operativos</span>
+              <StatusPill label="Egreso" variant="crimson" />
+            </div>
+            <div className="mt-3 text-[28px] font-semibold leading-9 tracking-[-0.02em] text-[#0F172A] tabular-metrics">
+              {formatQuetzales(kpis.expensesGtq)}
+            </div>
+            <div className="mt-2 text-[12px] text-[#64748B] tabular-metrics">
+              Insumos, energía y calibración
+            </div>
+          </div>
+  
+          <div className="stitch-card stitch-card-interactive p-6">
+            <div className="flex items-center justify-between">
+              <span className="stitch-label-sm">Margen Neto · IVA SAT</span>
+              <StatusPill label="Operativo" variant="blue" />
+            </div>
+            <div className="mt-3 text-[28px] font-semibold leading-9 tracking-[-0.02em] text-[#0F172A] tabular-metrics">
+              {formatQuetzales(kpis.netProfitGtq)}
+            </div>
+            <div className="mt-2 text-[12px] text-[#64748B] tabular-metrics">
+              IVA Neto por pagar: <strong className="text-[#0F172A]">{formatQuetzales(kpis.ivaBalanceGtq)}</strong>
+            </div>
           </div>
         </div>
-
-        <div className="stitch-card stitch-card-interactive p-6">
-          <div className="flex items-center justify-between">
-            <span className="stitch-label-sm">Pendiente de Cobro</span>
-            <StatusPill label="Pendiente" variant="amber" />
-          </div>
-          <div className="mt-3 text-[28px] font-semibold leading-9 tracking-[-0.02em] text-[#0F172A] tabular-metrics">
-            {formatQuetzales(kpis.pendingGtq)}
-          </div>
-          <div className="mt-2 text-[12px] text-[#64748B] tabular-metrics">
-            {kpis.activeOrdersCount} órdenes en flujo operativo
-          </div>
-        </div>
-
-        <div className="stitch-card stitch-card-interactive p-6">
-          <div className="flex items-center justify-between">
-            <span className="stitch-label-sm">Egresos Operativos</span>
-            <StatusPill label="Egreso" variant="crimson" />
-          </div>
-          <div className="mt-3 text-[28px] font-semibold leading-9 tracking-[-0.02em] text-[#0F172A] tabular-metrics">
-            {formatQuetzales(kpis.expensesGtq)}
-          </div>
-          <div className="mt-2 text-[12px] text-[#64748B] tabular-metrics">
-            Insumos, energía y calibración
-          </div>
-        </div>
-
-        <div className="stitch-card stitch-card-interactive p-6">
-          <div className="flex items-center justify-between">
-            <span className="stitch-label-sm">Margen Neto · IVA SAT</span>
-            <StatusPill label="Operativo" variant="blue" />
-          </div>
-          <div className="mt-3 text-[28px] font-semibold leading-9 tracking-[-0.02em] text-[#0F172A] tabular-metrics">
-            {formatQuetzales(kpis.netProfitGtq)}
-          </div>
-          <div className="mt-2 text-[12px] text-[#64748B] tabular-metrics">
-            IVA Neto por pagar: <strong className="text-[#0F172A]">{formatQuetzales(kpis.ivaBalanceGtq)}</strong>
-          </div>
-        </div>
-      </div>
+        </>
+      )}
 
       {/* Specialized Machine Fleet Status Strip */}
       <MachineFleetStrip machines={machines} onSelectMachine={handleSelectMachine} />
@@ -165,15 +173,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <th className="px-4 stitch-label-sm">Orden</th>
                   <th className="px-4 stitch-label-sm">Cliente / Proceso</th>
                   <th className="px-4 stitch-label-sm">Producción</th>
-                  <th className="px-4 stitch-label-sm">Cobro</th>
-                  <th className="px-4 stitch-label-sm text-right">Total (Q)</th>
+                  {canViewFinancialDetails && <th className="px-4 stitch-label-sm">Cobro</th>}
+                  {canViewFinancialDetails && <th className="px-4 stitch-label-sm text-right">Total (Q)</th>
                   <th className="px-4 stitch-label-sm text-right">Acción</th>
                 </tr>
               </thead>
               <tbody>
                 {recentOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-10 text-center text-[13px] text-[#64748B]">
+                    <td colSpan={canViewFinancialDetails ? 6 : 4} className="px-6 py-10 text-center text-[13px] text-[#64748B]">
                       No hay órdenes registradas para el filtro documental seleccionado.
                     </td>
                   </tr>
@@ -202,12 +210,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <td className="px-4">
                         <StatusPill {...getProductionStatusBadge(order.production_status)} />
                       </td>
-                      <td className="px-4">
-                        <StatusPill {...getFinancialStatusBadge(order.payment_status)} />
-                      </td>
-                      <td className="px-4 text-right text-[13px] font-medium text-[#0F172A] tabular-metrics whitespace-nowrap">
-                        {formatQuetzales(order.total_gtq)}
-                      </td>
+                      {canViewFinancialDetails && (
+                        <>
+                          <td className="px-4">
+                            <StatusPill {...getFinancialStatusBadge(order.payment_status)} />
+                          </td>
+                          <td className="px-4 text-right text-[13px] font-medium text-[#0F172A] tabular-metrics whitespace-nowrap">
+                            {formatQuetzales(order.total_gtq)}
+                          </td>
+                        </>
+                      )}
                       <td className="px-4 text-right whitespace-nowrap">
                         <div className="inline-flex items-center gap-1.5">
                           {order.production_status !== 'completado' && (
@@ -220,7 +232,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                               Completar
                             </button>
                           )}
-                          {order.payment_status === 'pendiente' && (
+                          {canViewFinancialDetails && order.payment_status === 'pendiente' && (
                             <button
                               type="button"
                               onClick={() => onQuickMarkPaid(order)}

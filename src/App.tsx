@@ -80,14 +80,14 @@ export default function App() {
     async (currentUser: User, currentDocFilter: DocTypeFilter) => {
       setLoadingData(true);
       try {
-        const [dashRes, machRes, ordRes, invRes, finRes, dbRes] = await Promise.all([
+        const [dashRes, machRes, ordRes, invRes, finRes] = await Promise.all([
           api.getDashboard(currentDocFilter),
           api.getMachines(),
           api.getOrders(),
           api.getInventory(),
           api.getFinances(),
-          api.getDbStatus(),
         ]);
+        const dbRes = currentUser.role === 'admin' ? await api.getDbStatus() : null;
 
         setDashboard(dashRes);
         setMachines(machRes.machines);
@@ -227,6 +227,7 @@ export default function App() {
         <AuthScreen
           onSuccess={(loggedUser) => {
             setUser(loggedUser);
+            setActiveSection('dashboard');
             notify('success', `Bienvenido, ${loggedUser.name}`);
           }}
         />
@@ -238,6 +239,9 @@ export default function App() {
   const lowStockCount = inventory.filter((i) => i.stock_qty <= i.min_stock_qty).length;
   const activeOrdersCount = orders.filter((o) => o.production_status !== 'completado').length;
   const canFinanceEdit = user.role === 'admin' || user.role === 'finance';
+  const canViewBalances = user.role === 'admin';
+  const canViewFinancialDetails = user.role !== 'operator';
+  const canRegisterFinancialEntries = true;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] flex">
@@ -323,6 +327,8 @@ export default function App() {
               onOpenNewOrder={() => openOrderModal('3d_printing')}
               onQuickMarkPaid={(o) => handleUpdateOrder(o.id, { payment_status: 'cobrado' })}
               onQuickCompleteOrder={(o) => handleUpdateOrder(o.id, { production_status: 'completado' })}
+              canViewBalances={canViewBalances}
+              canViewFinancialDetails={canViewFinancialDetails}
             />
           )}
 
@@ -330,6 +336,7 @@ export default function App() {
             <Print3DQueueView
               machines={machines}
               orders={orders}
+              canViewFinancialDetails={canViewFinancialDetails}
               onUpdateMachine={handleUpdateMachine}
               onUpdateOrder={handleUpdateOrder}
               onOpenNewOrder={() => openOrderModal('3d_printing')}
@@ -340,6 +347,7 @@ export default function App() {
             <LaserTelemetryView
               machines={machines}
               orders={orders}
+              canViewFinancialDetails={canViewFinancialDetails}
               onUpdateMachine={handleUpdateMachine}
               onUpdateOrder={handleUpdateOrder}
               onOpenNewOrder={() => openOrderModal('laser')}
@@ -367,6 +375,7 @@ export default function App() {
               onDeleteOrder={handleDeleteOrder}
               onOpenNewOrder={() => openOrderModal('3d_printing')}
               canDelete={canFinanceEdit}
+              canViewFinancialDetails={canViewFinancialDetails}
             />
           )}
 
@@ -379,10 +388,12 @@ export default function App() {
               onDeleteEntry={handleDeleteFinancialEntry}
               onOpenNewEntry={() => setExpenseModalOpen(true)}
               canEdit={canFinanceEdit}
+              canCreate={canRegisterFinancialEntries}
+              canViewBalances={canViewBalances}
             />
           )}
 
-          {activeSection === 'admin' && (
+          {activeSection === 'admin' && user.role === 'admin' && (
             <AdminD1View
               currentUser={user}
               users={users}

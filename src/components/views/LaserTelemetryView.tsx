@@ -1,12 +1,13 @@
 import React from 'react';
 import { CheckCircle2, Play, Plus, Wind, Wrench, Zap } from 'lucide-react';
-import { formatMinutes, formatQuetzales } from '../../lib/format';
+import { formatMinutes } from '../../lib/format';
 import type { Machine, WorkOrder } from '../../types/workshop';
 import { getProductionStatusBadge, StatusPill } from '../StatusPill';
 
 interface LaserTelemetryViewProps {
   machines: Machine[];
   orders: WorkOrder[];
+  canViewFinancialDetails: boolean;
   onUpdateMachine: (id: string, payload: Partial<Machine>) => Promise<void>;
   onUpdateOrder: (id: number, payload: Partial<WorkOrder>) => Promise<void>;
   onOpenNewOrder: () => void;
@@ -15,6 +16,7 @@ interface LaserTelemetryViewProps {
 export const LaserTelemetryView: React.FC<LaserTelemetryViewProps> = ({
   machines,
   orders,
+  canViewFinancialDetails,
   onUpdateMachine,
   onUpdateOrder,
   onOpenNewOrder,
@@ -174,7 +176,7 @@ export const LaserTelemetryView: React.FC<LaserTelemetryViewProps> = ({
                 <th className="px-4 stitch-label-sm">Material</th>
                 <th className="px-4 stitch-label-sm">Tiempo</th>
                 <th className="px-4 stitch-label-sm">Estado</th>
-                <th className="px-4 stitch-label-sm text-right">Total (Q)</th>
+                {canViewFinancialDetails && <th className="px-4 stitch-label-sm text-right">Total (Q)</th>}
                 <th className="px-4 stitch-label-sm text-right">Acción</th>
               </tr>
             </thead>
@@ -197,9 +199,11 @@ export const LaserTelemetryView: React.FC<LaserTelemetryViewProps> = ({
                   <td className="px-4">
                     <StatusPill {...getProductionStatusBadge(order.production_status)} />
                   </td>
-                  <td className="px-4 text-right text-[13px] font-medium text-[#0F172A] tabular-metrics">
-                    {formatQuetzales(order.total_gtq)}
-                  </td>
+                  {canViewFinancialDetails && (
+                    <td className="px-4 text-right text-[13px] font-medium text-[#0F172A] tabular-metrics">
+                      {formatQuetzales(order.total_gtq)}
+                    </td>
+                  )}
                   <td className="px-4 text-right">
                     {order.production_status !== 'completado' && (
                       <button

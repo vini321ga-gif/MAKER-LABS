@@ -13,6 +13,7 @@ interface WorkOrdersViewProps {
   onDeleteOrder: (id: number) => Promise<void>;
   onOpenNewOrder: () => void;
   canDelete: boolean;
+  canViewFinancialDetails: boolean;
 }
 
 export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
@@ -23,6 +24,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
   onDeleteOrder,
   onOpenNewOrder,
   canDelete,
+  canViewFinancialDetails,
 }) => {
   const [search, setSearch] = useState('');
   const [processFilter, setProcessFilter] = useState('all');
@@ -119,17 +121,21 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                 <th className="px-4 stitch-label-sm">Cliente / NIT</th>
                 <th className="px-4 stitch-label-sm">Proceso</th>
                 <th className="px-4 stitch-label-sm">Producción</th>
-                <th className="px-4 stitch-label-sm">Pago</th>
-                <th className="px-4 stitch-label-sm text-right">Subtotal (Q)</th>
-                <th className="px-4 stitch-label-sm text-right">IVA (Q)</th>
-                <th className="px-4 stitch-label-sm text-right">Total (Q)</th>
+                {canViewFinancialDetails && (
+                  <>
+                    <th className="px-4 stitch-label-sm">Pago</th>
+                    <th className="px-4 stitch-label-sm text-right">Subtotal (Q)</th>
+                    <th className="px-4 stitch-label-sm text-right">IVA (Q)</th>
+                    <th className="px-4 stitch-label-sm text-right">Total (Q)</th>
+                  </>
+                )}
                 <th className="px-4 stitch-label-sm text-right">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-[13px] text-[#64748B]">
+                  <td colSpan={canViewFinancialDetails ? 9 : 5} className="px-6 py-12 text-center text-[13px] text-[#64748B]">
                     No se encontraron órdenes con los criterios actuales.
                   </td>
                 </tr>
@@ -179,29 +185,33 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                         <option value="mantenimiento">Mantenimiento</option>
                       </select>
                     </td>
-                    <td className="px-4">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onUpdateOrder(order.id, {
-                            payment_status: order.payment_status === 'cobrado' ? 'pendiente' : 'cobrado',
-                          })
-                        }
-                        title="Alternar estado de cobro"
-                        className="cursor-pointer"
-                      >
-                        <StatusPill {...getFinancialStatusBadge(order.payment_status)} />
-                      </button>
-                    </td>
-                    <td className="px-4 text-right text-[13px] text-[#475569] tabular-metrics whitespace-nowrap">
-                      {formatQuetzales(order.subtotal_gtq)}
-                    </td>
-                    <td className="px-4 text-right text-[13px] text-[#64748B] tabular-metrics whitespace-nowrap">
-                      {formatQuetzales(order.iva_gtq)}
-                    </td>
-                    <td className="px-4 text-right text-[13px] font-semibold text-[#0F172A] tabular-metrics whitespace-nowrap">
-                      {formatQuetzales(order.total_gtq)}
-                    </td>
+                    {canViewFinancialDetails && (
+                      <>
+                        <td className="px-4">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onUpdateOrder(order.id, {
+                                payment_status: order.payment_status === 'cobrado' ? 'pendiente' : 'cobrado',
+                              })
+                            }
+                            title="Alternar estado de cobro"
+                            className="cursor-pointer"
+                          >
+                            <StatusPill {...getFinancialStatusBadge(order.payment_status)} />
+                          </button>
+                        </td>
+                        <td className="px-4 text-right text-[13px] text-[#475569] tabular-metrics whitespace-nowrap">
+                          {formatQuetzales(order.subtotal_gtq)}
+                        </td>
+                        <td className="px-4 text-right text-[13px] text-[#64748B] tabular-metrics whitespace-nowrap">
+                          {formatQuetzales(order.iva_gtq)}
+                        </td>
+                        <td className="px-4 text-right text-[13px] font-semibold text-[#0F172A] tabular-metrics whitespace-nowrap">
+                          {formatQuetzales(order.total_gtq)}
+                        </td>
+                      </>
+                    )}
                     <td className="px-4 text-right whitespace-nowrap">
                       <div className="inline-flex items-center gap-1">
                         <button
@@ -259,7 +269,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
             <div className="p-6 space-y-4 text-[13px]">
               <div className="flex items-center justify-between">
                 <StatusPill {...getProductionStatusBadge(selectedOrder.production_status)} />
-                <StatusPill {...getFinancialStatusBadge(selectedOrder.payment_status)} />
+                {canViewFinancialDetails && <StatusPill {...getFinancialStatusBadge(selectedOrder.payment_status)} />}
               </div>
 
               <div className="grid grid-cols-2 gap-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
@@ -288,20 +298,22 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                 </p>
               </div>
 
-              <div className="border-t border-[#E2E8F0] pt-3 space-y-1.5 tabular-metrics">
-                <div className="flex justify-between text-[#64748B]">
-                  <span>Base Imponible</span>
-                  <span>{formatQuetzales(selectedOrder.subtotal_gtq)}</span>
+              {canViewFinancialDetails && (
+                <div className="border-t border-[#E2E8F0] pt-3 space-y-1.5 tabular-metrics">
+                  <div className="flex justify-between text-[#64748B]">
+                    <span>Base Imponible</span>
+                    <span>{formatQuetzales(selectedOrder.subtotal_gtq)}</span>
+                  </div>
+                  <div className="flex justify-between text-[#64748B]">
+                    <span>IVA (12% SAT)</span>
+                    <span>{formatQuetzales(selectedOrder.iva_gtq)}</span>
+                  </div>
+                  <div className="flex justify-between text-[16px] font-semibold text-[#0F172A] pt-1 border-t border-[#F1F5F9]">
+                    <span>Total Quetzales</span>
+                    <span>{formatQuetzales(selectedOrder.total_gtq)}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between text-[#64748B]">
-                  <span>IVA (12% SAT)</span>
-                  <span>{formatQuetzales(selectedOrder.iva_gtq)}</span>
-                </div>
-                <div className="flex justify-between text-[16px] font-semibold text-[#0F172A] pt-1 border-t border-[#F1F5F9]">
-                  <span>Total Quetzales</span>
-                  <span>{formatQuetzales(selectedOrder.total_gtq)}</span>
-                </div>
-              </div>
+              )}
             </div>
 
             <div className="px-6 py-3.5 bg-[#F8FAFC] border-t border-[#E2E8F0] flex justify-end gap-2">

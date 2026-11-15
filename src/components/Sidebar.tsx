@@ -119,7 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="px-2.5 mb-2 stitch-label-sm">{group.title}</div>
             )}
             <div className="space-y-1">
-              {group.items.map((item) => {
+              {group.items.filter((item) => item.id !== 'admin' || user.role === 'admin').map((item) => {
                 const Icon = item.icon;
                 const active = activeSection === item.id;
                 return (

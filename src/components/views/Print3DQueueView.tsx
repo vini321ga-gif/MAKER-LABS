@@ -1,12 +1,13 @@
 import React from 'react';
 import { Box, CheckCircle2, Flame, Pause, Play, Plus, Wrench } from 'lucide-react';
-import { formatMinutes, formatQuetzales } from '../../lib/format';
+import { formatMinutes } from '../../lib/format';
 import type { Machine, MachineStatus, WorkOrder } from '../../types/workshop';
 import { getProductionStatusBadge, StatusPill } from '../StatusPill';
 
 interface Print3DQueueViewProps {
   machines: Machine[];
   orders: WorkOrder[];
+  canViewFinancialDetails: boolean;
   onUpdateMachine: (id: string, payload: Partial<Machine>) => Promise<void>;
   onUpdateOrder: (id: number, payload: Partial<WorkOrder>) => Promise<void>;
   onOpenNewOrder: () => void;
@@ -15,6 +16,7 @@ interface Print3DQueueViewProps {
 export const Print3DQueueView: React.FC<Print3DQueueViewProps> = ({
   machines,
   orders,
+  canViewFinancialDetails,
   onUpdateMachine,
   onUpdateOrder,
   onOpenNewOrder,
@@ -176,7 +178,7 @@ export const Print3DQueueView: React.FC<Print3DQueueViewProps> = ({
                 <th className="px-4 stitch-label-sm">Material</th>
                 <th className="px-4 stitch-label-sm">Tiempo</th>
                 <th className="px-4 stitch-label-sm">Estado</th>
-                <th className="px-4 stitch-label-sm text-right">Importe (Q)</th>
+                {canViewFinancialDetails && <th className="px-4 stitch-label-sm text-right">Importe (Q)</th>}
                 <th className="px-4 stitch-label-sm text-right">Control</th>
               </tr>
             </thead>
@@ -202,9 +204,11 @@ export const Print3DQueueView: React.FC<Print3DQueueViewProps> = ({
                   <td className="px-4">
                     <StatusPill {...getProductionStatusBadge(order.production_status)} />
                   </td>
-                  <td className="px-4 text-right text-[13px] font-medium text-[#0F172A] tabular-metrics whitespace-nowrap">
-                    {formatQuetzales(order.total_gtq)}
-                  </td>
+                  {canViewFinancialDetails && (
+                    <td className="px-4 text-right text-[13px] font-medium text-[#0F172A] tabular-metrics whitespace-nowrap">
+                      {formatQuetzales(order.total_gtq)}
+                    </td>
+                  )}
                   <td className="px-4 text-right whitespace-nowrap">
                     <div className="inline-flex items-center gap-1.5">
                       {order.production_status === 'cola_espera' && (
