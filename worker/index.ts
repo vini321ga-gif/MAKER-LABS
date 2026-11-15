@@ -10,17 +10,7 @@ const workerEnv = env as typeof env & {
   SESSION_SECRET: string;
 };
 
-if (!workerEnv.DB || !workerEnv.ASSETS || !workerEnv.FILES) {
-  throw new Error('Cloudflare bindings DB, ASSETS and FILES must be configured.');
-}
-if (!workerEnv.SESSION_SECRET) {
-  throw new Error('Set SESSION_SECRET as a Worker secret before running the app.');
-}
-
-process.env.SESSION_SECRET = workerEnv.SESSION_SECRET;
-process.env.NODE_ENV = workerEnv.APP_ENV === 'production' ? 'production' : 'development';
 const db = createD1Database(workerEnv.DB);
-
 const app = createApiApp(db, schemaSql, workerEnv.FILES);
 app.listen(3000);
 const handleExpressRequest = httpServerHandler({ port: 3000 });
@@ -41,6 +31,20 @@ export default {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
+      if (!workerEnv.DB || !workerEnv.ASSETS || !workerEnv.FILES) {
+        return Response.json(
+          { error: 'Cloudflare bindings DB, ASSETS and FILES must be configured.' },
+          { status: 503 }
+        );
+      }
+      if (!workerEnv.SESSION_SECRET) {
+        return Response.json(
+          { error: 'Set SESSION_SECRET as a Worker secret before using the app.' },
+          { status: 503 }
+        );
+      }
+      process.env.SESSION_SECRET = workerEnv.SESSION_SECRET;
+      process.env.NODE_ENV = workerEnv.APP_ENV === 'production' ? 'production' : 'development';
       try {
         await ensureInitialized();
         return await handleExpressRequest(request);
@@ -50,6 +54,9 @@ export default {
       }
     }
 
+    if (!workerEnv.ASSETS) {
+      return new Response('Assets binding is not configured.', { status: 503 });
+    }
     return workerEnv.ASSETS.fetch(request);
   },
 };
