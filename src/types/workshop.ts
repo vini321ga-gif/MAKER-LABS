@@ -201,4 +201,5 @@ export type NavSection =
   | 'orders'
   | 'finances'
   | 'admin'
-  | 'activity';
+  | 'activity'
+  | 'quotes';
