@@ -78,13 +78,16 @@ async function recordOrderPayment(
     : round2(Math.max(0, total - payments.reduce((sum, payment) => sum + Number(payment.total_gtq || 0), 0)));
   if (legacyPaidBaseline) outstanding = 0;
 
+  let amountToRecord = outstanding;
   if (input.type === 'advance') {
-    const amount = round2(Number(input.amount));
-    if (!Number.isFinite(amount) || amount <= 0 || amount > outstanding) {
+    amountToRecord = round2(Number(input.amount));
+    if (!Number.isFinite(amountToRecord) || amountToRecord <= 0 || amountToRecord > outstanding) {
       throw new Error('El anticipo debe ser mayor a Q 0.00 y no superar el saldo pendiente de la orden');
     }
-    outstanding = round2(outstanding - amount);
-  } else if (input.type !== 'full') {
+    outstanding = round2(outstanding - amountToRecord);
+  } else if (input.type === 'full') {
+    outstanding = 0;
+  } else {
     throw new Error('Tipo de pago no válido');
   }
 
@@ -102,7 +105,6 @@ async function recordOrderPayment(
     );
   }
 
-  const amountToRecord = input.type === 'advance' ? round2(Number(input.amount)) : input.status === 'cobrado' ? outstanding : outstanding;
   let payment: Record<string, unknown> | null = null;
   if (amountToRecord > 0) {
     const paymentCode = `FIN-${order.order_code}-PAY-${randomUUID().slice(0, 8).toUpperCase()}`;
