@@ -391,6 +391,7 @@ export default function App() {
               onChangeDocFilter={setDocFilter}
               onUpdateOrder={handleUpdateOrder}
               onDeleteOrder={handleDeleteOrder}
+              onRegisterOrderPayment={handleRecordOrderPayment}
               deletedOrders={deletedOrders}
               onOpenNewOrder={() => openOrderModal('3d_printing')}
               canDelete={user.role === 'admin'}
