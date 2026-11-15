@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, ArrowUpRight, CheckCircle2, Plus, TrendingUp } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, CheckCircle2, Eye, Plus, TrendingUp } from 'lucide-react';
 import { formatProcessLabel, formatQuetzales } from '../../lib/format';
 import type {
   DashboardPayload,
@@ -19,7 +19,7 @@ interface DashboardViewProps {
   onChangeDocFilter: (next: DocTypeFilter) => void;
   onNavigate: (section: NavSection) => void;
   onOpenNewOrder: () => void;
-  onQuickMarkPaid: (order: WorkOrder) => void;
+  onQuickMarkPaid: (order: WorkOrder) => Promise<unknown>;
   onQuickAdvance: (order: WorkOrder, amount: number, status: 'pendiente' | 'cobrado') => Promise<unknown>;
   onQuickCompleteOrder: (order: WorkOrder) => void;
   canViewBalances: boolean;
@@ -40,6 +40,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   canViewFinancialDetails,
 }) => {
   const [advanceOrder, setAdvanceOrder] = React.useState<WorkOrder | null>(null);
+  const [paymentType, setPaymentType] = React.useState<'advance' | 'full'>('advance');
   const [advanceAmount, setAdvanceAmount] = React.useState('');
   const [advanceStatus, setAdvanceStatus] = React.useState<'pendiente' | 'cobrado'>('cobrado');
   const [advanceBusy, setAdvanceBusy] = React.useState(false);
@@ -185,6 +186,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     {canViewFinancialDetails && (
                       <>
                         <th className="px-4 stitch-label-sm">Cobro</th>
+                        <th className="px-4 stitch-label-sm text-right">Abonos (Q)</th>
+                        <th className="px-4 stitch-label-sm text-right">Saldo pendiente (Q)</th>
                         <th className="px-4 stitch-label-sm text-right">Total (Q)</th>
                       </>
                     )}
@@ -195,7 +198,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <tbody>
                 {recentOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={canViewFinancialDetails ? 6 : 4} className="px-6 py-10 text-center text-[13px] text-[#64748B]">
+                    <td colSpan={canViewFinancialDetails ? 8 : 4} className="px-6 py-10 text-center text-[13px] text-[#64748B]">
                       No hay órdenes registradas para el filtro documental seleccionado.
                     </td>
                   </tr>
@@ -225,9 +228,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       {canViewFinancialDetails && (
                         <>
                           <td className="px-4">
-                            <StatusPill {...getFinancialStatusBadge(order.payment_status)} />
+                            {Number(order.amount_paid_gtq || 0) > 0 && Number(order.balance_due_gtq || 0) > 0
+                              ? <StatusPill label="Abono registrado" variant="blue" />
+                              : <StatusPill {...getFinancialStatusBadge(order.payment_status)} />}
+                          </td>
+                          <td className="px-4 text-right text-[13px] text-[#475569] tabular-metrics whitespace-nowrap">
+                            {formatQuetzales(Number(order.amount_paid_gtq || 0))}
                           </td>
                           <td className="px-4 text-right text-[13px] font-medium text-[#0F172A] tabular-metrics whitespace-nowrap">
+                            {formatQuetzales(Number(order.balance_due_gtq ?? order.total_gtq))}
+                          </td>
+                          <td className="px-4 text-right text-[13px] font-semibold text-[#0F172A] tabular-metrics whitespace-nowrap">
                             {formatQuetzales(order.total_gtq)}
                           </td>
                         </>
@@ -244,24 +255,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                               Completar
                             </button>
                           )}
-                          {(order.payment_status === 'pendiente' || order.can_register_payment === true) && (
-                            <button
-                              type="button"
-                              onClick={() => setAdvanceOrder(order)}
-                              className="h-7 px-2.5 rounded-md border border-[#E2E8F0] bg-white hover:bg-[#EFF6FF] text-[#2563EB] text-[11px] font-medium transition-colors cursor-pointer"
-                            >
-                              Abonar
-                            </button>
-                          )}
-                          {canViewFinancialDetails && order.payment_status === 'pendiente' && (
-                            <button
-                              type="button"
-                              onClick={() => onQuickMarkPaid(order)}
-                              className="h-7 px-2.5 rounded-md bg-[#0F172A] hover:bg-[#1E293B] text-white text-[11px] font-medium transition-colors cursor-pointer"
-                            >
-                              Cobrar
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAdvanceOrder(order);
+                              setPaymentType('advance');
+                              setAdvanceAmount('');
+                              setAdvanceError('');
+                            }}
+                            className="h-7 px-2.5 rounded-md border border-[#E2E8F0] bg-white hover:bg-[#EFF6FF] text-[#2563EB] text-[11px] font-medium inline-flex items-center gap-1 transition-colors cursor-pointer"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            Visualizar
+                          </button>
                         </div>
                       </td>
                     </tr>
