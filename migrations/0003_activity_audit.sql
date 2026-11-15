@@ -33,7 +33,15 @@ SELECT f.created_by, COALESCE(u.name, 'Usuario #' || COALESCE(f.created_by, 0)),
             ELSE f.description || ' por Q ' || printf('%.2f', f.total_gtq) || ', estado ' || f.status || '.' END,
        f.created_at
 FROM financial_entries f LEFT JOIN users u ON u.id = f.created_by
-WHERE f.order_code IS NULL OR f.entry_code <> ('FIN-' || f.order_code);
+WHERE (f.order_code IS NULL OR f.entry_code <> ('FIN-' || f.order_code))
+  AND NOT EXISTS (
+    SELECT 1 FROM activity_log a
+    WHERE a.action = CASE
+      WHEN f.order_code IS NULL THEN CASE WHEN f.entry_type = 'ingreso' THEN 'capital_income_created' ELSE 'expense_created' END
+      WHEN lower(f.description) LIKE 'anticipo%' THEN 'advance_registered' ELSE 'full_payment_registered'
+    END
+      AND a.entity_id = CAST(f.id AS TEXT)
+  );
 
 INSERT INTO activity_log (actor_id, actor_name, actor_role, action, entity_type, entity_id, entity_label, details, created_at)
 SELECT w.deleted_by, COALESCE(w.deleted_by_name, u.name, 'Usuario #' || COALESCE(w.deleted_by, 0)), COALESCE(u.role, 'admin'),
