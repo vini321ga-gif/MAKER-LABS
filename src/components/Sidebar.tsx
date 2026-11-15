@@ -6,6 +6,7 @@ import {
   ClipboardList,
   Database,
   Droplets,
+  FileText,
   Layers,
   LayoutDashboard,
   LogOut,
@@ -64,6 +65,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: 'Finanzas & Sistema',
       items: [
         { id: 'finances', label: 'Facturación y P&L (Q)', icon: Receipt },
+        { id: 'quotes', label: 'Cotizaciones', icon: FileText },
         { id: 'activity', label: 'Registro de actividad', icon: ClipboardList },
         { id: 'admin', label: 'Usuarios y Cloudflare D1', icon: Database },
       ],
@@ -86,7 +88,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {!isCompact && (
             <div className="min-w-0">
               <div className="text-[14px] font-semibold tracking-[-0.01em] text-[#0F172A] truncate">
-                PrecisionHub
+                Maker Labs
               </div>
               <div className="text-[11px] text-[#64748B] truncate">Manufactura</div>
             </div>
@@ -120,7 +122,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="px-2.5 mb-2 stitch-label-sm">{group.title}</div>
             )}
             <div className="space-y-1">
-              {group.items.filter((item) => (item.id !== 'admin' || user.role === 'admin') && (item.id !== 'activity' || user.role === 'admin' || user.role === 'finance')).map((item) => {
+              {group.items.filter((item) => (item.id !== 'admin' || user.role === 'admin') && (item.id !== 'activity' || user.role === 'admin' || user.role === 'finance') && (item.id !== 'quotes' || user.role === 'admin' || user.role === 'finance')).map((item) => {
                 const Icon = item.icon;
                 const active = activeSection === item.id;
                 return (
