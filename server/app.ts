@@ -1022,8 +1022,10 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
   app.delete('/api/orders/:id', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = Number(req.params.id);
-      const existing = await db.queryOne<{ order_code: string; deleted_at: string | null }>(
-        'SELECT order_code, deleted_at FROM work_orders WHERE id = ?',
+      const reason = String(req.body?.reason || '').trim();
+      if (!reason) { res.status(400).json({ error: 'Escriba una justificación para borrar la orden' }); return; }
+      const existing = await db.queryOne<{ order_code: string; deleted_at: string | null; client_name: string; total_gtq: number }>(
+        'SELECT order_code, deleted_at, client_name, total_gtq FROM work_orders WHERE id = ?',
         [id]
       );
       if (!existing) {
@@ -1036,14 +1038,15 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
       }
       await db.run(
         `UPDATE work_orders
-         SET deleted_at = datetime('now'), deleted_by = ?, deleted_by_name = ?, payment_status = 'anulado'
+         SET deleted_at = datetime('now'), deleted_by = ?, deleted_by_name = ?, deleted_reason = ?, payment_status = 'anulado'
          WHERE id = ? AND deleted_at IS NULL`,
-        [req.user?.id || null, req.user?.name || 'Administrador', id]
+        [req.user?.id || null, req.user?.name || 'Administrador', reason, id]
       );
       await db.run(
         `UPDATE financial_entries SET status = 'anulado' WHERE order_code = ?`,
         [existing.order_code]
       );
+      await writeActivity(db, req.user || undefined, 'order_deleted', 'order', id, existing.order_code, 'Orden de ' + existing.client_name + ', total Q ' + Number(existing.total_gtq).toFixed(2) + '. Justificación: ' + reason);
       res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Error eliminando orden' });
