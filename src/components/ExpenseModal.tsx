@@ -79,8 +79,8 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ open, onClose, onCre
             </select>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="sm:col-span-2">
+          <div className="grid grid-cols-1 gap-3">
+            <div>
               <label className="block text-[12px] font-medium text-[#1E293B] mb-1">
                 {entryType === 'egreso' ? 'Proveedor *' : 'Cliente *'}
               </label>
