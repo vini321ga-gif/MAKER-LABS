@@ -76,6 +76,10 @@ async function recordOrderPayment(
   let outstanding = baseline
     ? round2(Math.max(0, Number(baseline.total_gtq) || 0))
     : round2(Math.max(0, total - payments.reduce((sum, payment) => sum + Number(payment.total_gtq || 0), 0)));
+  const alreadyPaid = legacyPaidBaseline || payments
+    .filter((payment) => payment.status === 'cobrado')
+    .reduce((sum, payment) => sum + Number(payment.total_gtq || 0), 0) >= total;
+  if (alreadyPaid) throw new Error('La orden ya está pagada');
   if (legacyPaidBaseline) outstanding = 0;
 
   let amountToRecord = outstanding;
