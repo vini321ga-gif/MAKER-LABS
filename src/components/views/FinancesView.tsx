@@ -102,7 +102,7 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
       e.counterparty.toLowerCase().includes(q) ||
       e.description.toLowerCase().includes(q) ||
       e.category.toLowerCase().includes(q) ||
-      e.nit.toLowerCase().includes(q);
+      false;
     return matchesDoc && matchesType && matchesStatus && matchesSearch;
   });
 
@@ -111,13 +111,9 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
       'Codigo',
       'Fecha',
       'Tipo',
-      'Regimen',
       'Contraparte',
-      'NIT',
       'Categoria',
       'Descripcion',
-      'Subtotal_GTQ',
-      'IVA_GTQ',
       'Total_GTQ',
       'Estado',
     ];
@@ -125,13 +121,9 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
       e.entry_code,
       e.entry_date,
       e.entry_type,
-      e.doc_type,
       `"${e.counterparty.replace(/"/g, '""')}"`,
-      e.nit,
       `"${e.category.replace(/"/g, '""')}"`,
       `"${e.description.replace(/"/g, '""')}"`,
-      e.subtotal_gtq.toFixed(2),
-      e.iva_gtq.toFixed(2),
       e.total_gtq.toFixed(2),
       e.status,
     ]);
@@ -149,7 +141,7 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
     <div className="space-y-6">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <span className="stitch-label-sm">Contabilidad en Quetzales & Cumplimiento SAT</span>
+          <span className="stitch-label-sm">Control de Ingresos y Egresos</span>
           <h2 className="text-[24px] font-semibold tracking-[-0.02em] text-[#0F172A] leading-8 mt-0.5">
             Facturación, P&L y Libro Contable
           </h2>
@@ -180,8 +172,8 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
 
       {canViewBalances && data.summary && (
         <>
-        {/* P&L + SAT IVA Summary Tiles */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+        {/* Resumen financiero */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <div className="stitch-card p-5">
             <span className="stitch-label-sm">Ingresos Cobrados</span>
             <div className="text-[22px] font-semibold text-[#059669] tabular-metrics mt-2">
@@ -206,15 +198,6 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
               {formatQuetzales(data.summary.netMarginGtq)}
             </div>
           </div>
-          <div className="stitch-card p-5">
-            <span className="stitch-label-sm">IVA Neto SAT (12%)</span>
-            <div className="text-[22px] font-semibold text-[#2563EB] tabular-metrics mt-2">
-              {formatQuetzales(data.summary.ivaNetPayableGtq)}
-            </div>
-            <div className="text-[11px] text-[#64748B] tabular-metrics mt-0.5">
-              Déb {formatQuetzales(data.summary.ivaDebitGtq)} · Créd {formatQuetzales(data.summary.ivaCreditGtq)}
-            </div>
-          </div>
         </div>
         </>
       )}
@@ -229,7 +212,7 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar factura, NIT, proveedor..."
+                placeholder="Buscar código, cliente o proveedor..."
                 className="stitch-input pl-8 pr-3 w-64"
               />
             </div>
@@ -266,12 +249,9 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
             <thead>
               <tr className="bg-[#F8FAFC] h-10 border-b border-[#E2E8F0]">
                 <th className="px-4 stitch-label-sm">Código / Fecha</th>
-                <th className="px-4 stitch-label-sm">Contraparte / NIT</th>
+                <th className="px-4 stitch-label-sm">Contraparte</th>
                 <th className="px-4 stitch-label-sm">Categoría / Detalle</th>
-                <th className="px-4 stitch-label-sm">Documento</th>
                 <th className="px-4 stitch-label-sm">Estado</th>
-                <th className="px-4 stitch-label-sm text-right">Base (Q)</th>
-                <th className="px-4 stitch-label-sm text-right">IVA (Q)</th>
                 <th className="px-4 stitch-label-sm text-right">Total (Q)</th>
                 <th className="px-4 stitch-label-sm">Registrado por</th>
                 {canEdit && <th className="px-4 stitch-label-sm text-right">Acciones</th>}
@@ -291,7 +271,6 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
                     <div className="text-[13px] font-medium text-[#0F172A] truncate max-w-[190px]">
                       {entry.counterparty}
                     </div>
-                    <div className="text-[11px] text-[#64748B] tabular-metrics">NIT: {entry.nit}</div>
                   </td>
                   <td className="px-4">
                     <div className="text-[12px] font-medium text-[#1E293B]">{entry.category}</div>
@@ -299,17 +278,8 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
                       {entry.description}
                     </div>
                   </td>
-                  <td className="px-4 text-[12px] text-[#475569] whitespace-nowrap">
-                    {entry.doc_type === 'factura_sat' ? 'Factura SAT' : 'Comprobante'}
-                  </td>
                   <td className="px-4">
                     <StatusPill {...getFinancialStatusBadge(entry.status)} />
-                  </td>
-                  <td className="px-4 text-right text-[13px] text-[#475569] tabular-metrics whitespace-nowrap">
-                    {formatQuetzales(entry.subtotal_gtq)}
-                  </td>
-                  <td className="px-4 text-right text-[13px] text-[#64748B] tabular-metrics whitespace-nowrap">
-                    {formatQuetzales(entry.iva_gtq)}
                   </td>
                   <td
                     className={`px-4 text-right text-[13px] font-semibold tabular-metrics whitespace-nowrap ${
