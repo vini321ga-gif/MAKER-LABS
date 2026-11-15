@@ -130,14 +130,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   
           <div className="stitch-card stitch-card-interactive p-6">
             <div className="flex items-center justify-between">
-              <span className="stitch-label-sm">Margen Neto · IVA SAT</span>
+              <span className="stitch-label-sm">Margen Neto</span>
               <StatusPill label="Operativo" variant="blue" />
             </div>
             <div className="mt-3 text-[28px] font-semibold leading-9 tracking-[-0.02em] text-[#0F172A] tabular-metrics">
               {formatQuetzales(kpis.netProfitGtq)}
             </div>
             <div className="mt-2 text-[12px] text-[#64748B] tabular-metrics">
-              IVA Neto por pagar: <strong className="text-[#0F172A]">{formatQuetzales(kpis.ivaBalanceGtq)}</strong>
+              Resultado neto de operaciones
             </div>
           </div>
         </div>
@@ -147,7 +147,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* Specialized Machine Fleet Status Strip */}
       <MachineFleetStrip machines={machines} onSelectMachine={handleSelectMachine} />
 
-      {/* Main Split: Recent Orders Table (8 cols) + Low Stock & SAT Quick Panel (4 cols) */}
+      {/* Main Split: Recent Orders Table (8 cols) + Low Stock Panel (4 cols) */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
         <div className="xl:col-span-8 stitch-card overflow-hidden">
           <div className="px-6 py-4 border-b border-[#E2E8F0] flex items-center justify-between gap-4">
@@ -200,9 +200,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <td className="px-4 text-[13px] font-medium text-[#0F172A] tabular-metrics whitespace-nowrap">
                         <div>{order.order_code}</div>
                         <div className="text-[11px] text-[#64748B]">
-                          {order.doc_type === 'factura_sat'
-                            ? `SAT ${order.sat_series || 'A1B2'}-${order.sat_number || ''}`
-                            : 'Comprobante'}
+                          Orden de trabajo
                         </div>
                       </td>
                       <td className="px-4 text-[13px] text-[#1E293B]">
