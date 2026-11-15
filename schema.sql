@@ -52,7 +52,10 @@ CREATE TABLE IF NOT EXISTS work_orders (
   production_status TEXT NOT NULL CHECK(production_status IN ('cola_espera', 'en_produccion', 'calentando', 'completado', 'mantenimiento')),
   due_date TEXT NOT NULL,
   created_by INTEGER REFERENCES users(id),
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  deleted_at TEXT,
+  deleted_by INTEGER,
+  deleted_by_name TEXT
 );
 
 CREATE TABLE IF NOT EXISTS inventory_items (

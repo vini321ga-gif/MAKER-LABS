@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'operator' | 'finance';
+export type UserRole = 'admin' | 'operator' | 'finance'; // finance se presenta como Supervisor
 
 export interface User {
   id: number;
@@ -80,6 +80,10 @@ export interface WorkOrder {
   production_status: ProductionStatus;
   due_date: string;
   created_by: number | null;
+  created_by_name?: string | null;
+  deleted_at?: string | null;
+  deleted_by?: number | null;
+  deleted_by_name?: string | null;
   created_at: string;
 }
 
@@ -119,6 +123,7 @@ export interface FinancialEntry {
   status: 'cobrado' | 'pendiente' | 'egreso' | 'anulado';
   entry_date: string;
   created_by: number | null;
+  created_by_name?: string | null;
   created_at: string;
 }
 
