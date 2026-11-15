@@ -106,7 +106,7 @@ export const AdminD1View: React.FC<AdminD1ViewProps> = ({
               <div className="flex justify-between">
                 <span className="text-[#64748B]">Modo de ejecución:</span>
                 <span className="font-semibold text-[#0F172A]">
-                  {dbStatus.status.mode === 'cloudflare_d1' ? 'Cloudflare D1 Remoto' : 'SQLite Local (D1-Compatible)'}
+                  {dbStatus.status.mode === 'cloudflare_d1' ? 'Cloudflare D1 (Worker binding)' : 'SQLite Local'}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -114,9 +114,9 @@ export const AdminD1View: React.FC<AdminD1ViewProps> = ({
                 <span className="font-medium text-[#0F172A] tabular-metrics">{dbStatus.status.databaseName}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[#64748B]">Credenciales Cloudflare D1:</span>
+                <span className="text-[#64748B]">Binding Cloudflare D1:</span>
                 <span className="font-medium text-[#0F172A]">
-                  {dbStatus.status.d1Configured ? 'Configuradas (.env)' : 'Usando respaldo SQLite local'}
+                  {dbStatus.status.d1Configured ? 'Configurado en Wrangler' : 'Usando SQLite local'}
                 </span>
               </div>
             </div>
@@ -137,11 +137,10 @@ export const AdminD1View: React.FC<AdminD1ViewProps> = ({
             </div>
 
             <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3.5 text-[12px] text-[#475569] leading-5">
-              Para enlazar una instancia remota de <strong className="text-[#0F172A]">Cloudflare D1</strong>,
-              define <code className="text-[#0F172A]">CLOUDFLARE_ACCOUNT_ID</code>,{' '}
-              <code className="text-[#0F172A]">CLOUDFLARE_D1_DATABASE_ID</code> y{' '}
-              <code className="text-[#0F172A]">CLOUDFLARE_API_TOKEN</code> en tus variables de entorno y ejecuta{' '}
-              <code className="text-[#0F172A]">wrangler d1 execute &lt;db&gt; --file=./schema.sql</code>.
+              Para enlazar <strong className="text-[#0F172A]">Cloudflare D1</strong>, configura el binding{' '}
+              <code className="text-[#0F172A]">DB</code> en <code className="text-[#0F172A]">wrangler.jsonc</code>{' '}
+              y aplica las migraciones con <code className="text-[#0F172A]">npm run db:migrate:local</code> o{' '}
+              <code className="text-[#0F172A]">npm run db:migrate:remote</code>.
             </div>
           </div>
 

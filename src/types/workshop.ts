@@ -122,6 +122,14 @@ export interface FinancialEntry {
   created_at: string;
 }
 
+export interface FinancialAttachment {
+  id: string;
+  original_name: string;
+  content_type: string;
+  size_bytes: number;
+  created_at: string;
+}
+
 export interface DashboardPayload {
   kpis: {
     collectedGtq: number;
