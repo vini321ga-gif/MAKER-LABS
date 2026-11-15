@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { api } from '../lib/api';
-import { calculateSatBreakdown, formatQuetzales } from '../lib/format';
-import type { DocType, Machine, MachineCategory, WorkOrder } from '../types/workshop';
+import { formatQuetzales } from '../lib/format';
+import type { Machine, MachineCategory, WorkOrder } from '../types/workshop';
 
 interface OrderModalProps {
   open: boolean;
@@ -27,11 +27,12 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [machineId, setMachineId] = useState<string>('');
   const [material, setMaterial] = useState('PETG Carbon Fiber Negro');
   const [description, setDescription] = useState('');
-  const [quantity, setQuantity] = useState(1);
-  const [estimatedMinutes, setEstimatedMinutes] = useState(120);
-  const [unitPriceGtq, setUnitPriceGtq] = useState(150);
-  const [docType, setDocType] = useState<DocType>('factura_sat');
-  const [paymentStatus, setPaymentStatus] = useState<'pendiente' | 'cobrado'>('pendiente');
+  const [quantity, setQuantity] = useState('');
+  const [estimatedMinutes, setEstimatedMinutes] = useState('');
+  const [unitPriceGtq, setUnitPriceGtq] = useState('');
+  const [initialPaymentType, setInitialPaymentType] = useState<'none' | 'advance' | 'full'>('none');
+  const [initialPaymentStatus, setInitialPaymentStatus] = useState<'pendiente' | 'cobrado'>('pendiente');
+  const [initialPaymentAmount, setInitialPaymentAmount] = useState('');
   const [productionStatus, setProductionStatus] = useState<'cola_espera' | 'en_produccion' | 'calentando'>('cola_espera');
   const [dueDate, setDueDate] = useState(() => {
     const d = new Date();
@@ -50,15 +51,30 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       ? machineId
       : filteredMachines[0]?.id || '';
 
-  const breakdown = useMemo(
-    () => calculateSatBreakdown(quantity * unitPriceGtq, docType),
-    [quantity, unitPriceGtq, docType]
-  );
-
-  if (!open) return null;
+breakdown  if (!open) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const quantityValue = Number(quantity);
+    const estimatedMinutesValue = Number(estimatedMinutes);
+    const unitPriceValue = Number(unitPriceGtq);
+    const paymentAmountValue = Number(initialPaymentAmount);
+    if (!Number.isFinite(quantityValue) || quantityValue < 1 || !Number.isInteger(quantityValue)) {
+      onError('Ingrese una cantidad válida de al menos 1 pieza');
+      return;
+    }
+    if (!Number.isFinite(estimatedMinutesValue) || estimatedMinutesValue < 5) {
+      onError('Ingrese un tiempo estimado de al menos 5 minutos');
+      return;
+    }
+    if (!Number.isFinite(unitPriceValue) || unitPriceValue <= 0) {
+      onError('Ingrese un precio unitario mayor a Q 0.00');
+      return;
+    }
+    if (initialPaymentType === 'advance' && (!Number.isFinite(paymentAmountValue) || paymentAmountValue <= 0 || paymentAmountValue > quantityValue * unitPriceValue)) {
+      onError('El anticipo debe ser mayor a Q 0.00 y no superar el total de la orden');
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await api.createOrder({
@@ -68,11 +84,14 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         machine_id: selectedMachineId || null,
         material,
         description,
-        quantity,
-        estimated_minutes: estimatedMinutes,
-        unit_price_gtq: unitPriceGtq,
-        doc_type: docType,
-        payment_status: paymentStatus,
+        quantity: quantityValue,
+        estimated_minutes: estimatedMinutesValue,
+        unit_price_gtq: unitPriceValue,
+        doc_type: 'comprobante_taller',
+        payment_status: initialPaymentType === 'full' && initialPaymentStatus === 'cobrado' ? 'cobrado' : 'pendiente',
+        initial_payment_type: initialPaymentType,
+        initial_payment_status: initialPaymentStatus,
+        initial_payment_amount: initialPaymentType === 'advance' ? paymentAmountValue : undefined,
         production_status: productionStatus,
         due_date: dueDate,
       });
@@ -105,32 +124,9 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="overflow-y-auto p-6 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="sm:col-span-2">
-              <label className="block text-[12px] font-medium text-[#1E293B] mb-1">
-                Cliente / Empresa *
-              </label>
-              <input
-                type="text"
-                required
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                placeholder="Ej. Ingeniería Industrial S.A."
-                className="stitch-input w-full px-3"
-              />
-            </div>
-            <div>
-              <label className="block text-[12px] font-medium text-[#1E293B] mb-1">
-                NIT (SAT)
-              </label>
-              <input
-                type="text"
-                value={clientNit}
-                onChange={(e) => setClientNit(e.target.value)}
-                placeholder="CF o 1234567-8"
-                className="stitch-input w-full px-3 tabular-metrics"
-              />
-            </div>
+          <div>
+            <label className="block text-[12px] font-medium text-[#1E293B] mb-1">Cliente / Empresa *</label>
+            <input type="text" required value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Ej. Ingeniería Industrial S.A." className="stitch-input w-full px-3" />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -223,7 +219,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 min={1}
                 required
                 value={quantity}
-                onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
+                onChange={(e) => setQuantity(e.target.value)}
                 className="stitch-input w-full px-3 tabular-metrics"
               />
             </div>
@@ -241,7 +237,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   min={0.01}
                   required
                   value={unitPriceGtq}
-                  onChange={(e) => setUnitPriceGtq(Math.max(0.01, Number(e.target.value) || 0))}
+                  onChange={(e) => setUnitPriceGtq(e.target.value)}
                   className="h-[36px] w-full px-3 text-[13px] text-[#0F172A] bg-white focus:outline-none tabular-metrics"
                 />
               </div>
@@ -255,7 +251,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 min={5}
                 required
                 value={estimatedMinutes}
-                onChange={(e) => setEstimatedMinutes(Math.max(5, Number(e.target.value) || 5))}
+                onChange={(e) => setEstimatedMinutes(e.target.value)}
                 className="stitch-input w-full px-3 tabular-metrics"
               />
             </div>
@@ -263,67 +259,33 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-[12px] font-medium text-[#1E293B] mb-1">
-                Documento Fiscal
-              </label>
-              <select
-                value={docType}
-                onChange={(e) => setDocType(e.target.value as DocType)}
-                className="stitch-input w-full px-3"
-              >
-                <option value="factura_sat">Factura SAT (IVA 12%)</option>
-                <option value="comprobante_taller">Comprobante Taller</option>
+              <label className="block text-[12px] font-medium text-[#1E293B] mb-1">Estado de Producción</label>
+              <select value={productionStatus} onChange={(e) => setProductionStatus(e.target.value as 'cola_espera' | 'en_produccion' | 'calentando')} className="stitch-input w-full px-3">
+                <option value="cola_espera">Cola de Espera</option><option value="calentando">Calentando</option><option value="en_produccion">En Producción</option>
               </select>
             </div>
             <div>
-              <label className="block text-[12px] font-medium text-[#1E293B] mb-1">
-                Estado de Producción
-              </label>
-              <select
-                value={productionStatus}
-                onChange={(e) =>
-                  setProductionStatus(e.target.value as 'cola_espera' | 'en_produccion' | 'calentando')
-                }
-                className="stitch-input w-full px-3"
-              >
-                <option value="cola_espera">Cola de Espera</option>
-                <option value="calentando">Calentando</option>
-                <option value="en_produccion">En Producción</option>
+              <label className="block text-[12px] font-medium text-[#1E293B] mb-1">Forma de pago</label>
+              <select value={initialPaymentType} onChange={(e) => setInitialPaymentType(e.target.value as 'none' | 'advance' | 'full')} className="stitch-input w-full px-3">
+                <option value="none">Pendiente</option><option value="advance">Anticipo</option><option value="full">Pago total</option>
               </select>
             </div>
             <div>
-              <label className="block text-[12px] font-medium text-[#1E293B] mb-1">
-                Estado Financiero
-              </label>
-              <select
-                value={paymentStatus}
-                onChange={(e) => setPaymentStatus(e.target.value as 'pendiente' | 'cobrado')}
-                className="stitch-input w-full px-3"
-              >
-                <option value="pendiente">Pendiente de Cobro</option>
-                <option value="cobrado">Cobrado</option>
+              <label className="block text-[12px] font-medium text-[#1E293B] mb-1">Estado del pago</label>
+              <select value={initialPaymentStatus} disabled={initialPaymentType === 'none'} onChange={(e) => setInitialPaymentStatus(e.target.value as 'pendiente' | 'cobrado')} className="stitch-input w-full px-3 disabled:opacity-60">
+                <option value="pendiente">Pendiente</option><option value="cobrado">Pagado</option>
               </select>
             </div>
           </div>
-
-          {/* Live Quetzal / SAT Calculation Summary */}
-          <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 flex flex-wrap items-center justify-between gap-4">
-            <div className="text-[12px] text-[#64748B] space-y-0.5 tabular-metrics">
-              <div>
-                Base Imponible:{' '}
-                <span className="font-medium text-[#0F172A]">{formatQuetzales(breakdown.subtotal)}</span>
-              </div>
-              <div>
-                IVA (12% SAT):{' '}
-                <span className="font-medium text-[#0F172A]">{formatQuetzales(breakdown.iva)}</span>
-              </div>
+          {initialPaymentType === 'advance' && (
+            <div className="max-w-sm">
+              <label className="block text-[12px] font-medium text-[#1E293B] mb-1">Monto del anticipo (Q)</label>
+              <input type="number" step="0.01" min="0.01" max={quantity && unitPriceGtq ? Number(quantity) * Number(unitPriceGtq) : undefined} required value={initialPaymentAmount} onChange={(e) => setInitialPaymentAmount(e.target.value)} className="stitch-input w-full px-3 tabular-metrics" />
             </div>
-            <div className="text-right">
-              <div className="stitch-label-sm">Total Orden</div>
-              <div className="text-[22px] font-semibold text-[#0F172A] tabular-metrics">
-                {formatQuetzales(breakdown.total)}
-              </div>
-            </div>
+          )}
+          <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 flex items-center justify-between gap-4">
+            <span className="text-[12px] text-[#64748B]">Monto final de la orden · 5% incluido</span>
+            <div className="text-right"><div className="stitch-label-sm">Total Orden</div><div className="text-[22px] font-semibold text-[#0F172A] tabular-metrics">{formatQuetzales((Number(quantity) || 0) * (Number(unitPriceGtq) || 0))}</div></div>
           </div>
 
           <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#E2E8F0]">
