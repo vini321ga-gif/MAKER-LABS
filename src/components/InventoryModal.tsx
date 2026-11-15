@@ -15,9 +15,9 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ open, onClose, o
   const [name, setName] = useState('');
   const [category, setCategory] = useState<InventoryCategory>('filamento_3d');
   const [unit, setUnit] = useState('kg');
-  const [stockQty, setStockQty] = useState(5);
-  const [minStockQty, setMinStockQty] = useState(2);
-  const [unitCostGtq, setUnitCostGtq] = useState(250);
+  const [stockQty, setStockQty] = useState('');
+  const [minStockQty, setMinStockQty] = useState('');
+  const [unitCostGtq, setUnitCostGtq] = useState('');
   const [supplier, setSupplier] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -25,6 +25,13 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ open, onClose, o
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const stock = Number(stockQty);
+    const minStock = Number(minStockQty);
+    const unitCost = Number(unitCostGtq);
+    if (![stock, minStock, unitCost].every((value) => Number.isFinite(value) && value >= 0)) {
+      onError('Ingrese valores numéricos válidos para existencias, mínimo y costo');
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await api.createInventoryItem({
@@ -32,9 +39,9 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ open, onClose, o
         name,
         category,
         unit,
-        stock_qty: stockQty,
-        min_stock_qty: minStockQty,
-        unit_cost_gtq: unitCostGtq,
+        stock_qty: stock,
+        min_stock_qty: minStock,
+        unit_cost_gtq: unitCost,
         supplier,
       });
       onCreated(res.item);
@@ -124,7 +131,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ open, onClose, o
                 min={0}
                 required
                 value={stockQty}
-                onChange={(e) => setStockQty(Number(e.target.value) || 0)}
+                onChange={(e) => setStockQty(e.target.value)}
                 className="stitch-input w-full px-3 tabular-metrics"
               />
             </div>
@@ -136,7 +143,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ open, onClose, o
                 min={0}
                 required
                 value={minStockQty}
-                onChange={(e) => setMinStockQty(Number(e.target.value) || 0)}
+                onChange={(e) => setMinStockQty(e.target.value)}
                 className="stitch-input w-full px-3 tabular-metrics"
               />
             </div>
@@ -148,7 +155,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ open, onClose, o
                 min={0}
                 required
                 value={unitCostGtq}
-                onChange={(e) => setUnitCostGtq(Number(e.target.value) || 0)}
+                onChange={(e) => setUnitCostGtq(e.target.value)}
                 className="stitch-input w-full px-3 tabular-metrics"
               />
             </div>
