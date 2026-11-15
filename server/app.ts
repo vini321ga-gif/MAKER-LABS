@@ -746,24 +746,31 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
       const quantity = Math.max(1, Math.floor(Number(req.body?.quantity || 1)));
       const estimatedMinutes = Math.max(5, Math.floor(Number(req.body?.estimated_minutes || 60)));
       const unitPriceGtq = round2(Math.max(0.01, Number(req.body?.unit_price_gtq || 0)));
-      const docType = req.body?.doc_type === 'comprobante_taller' ? 'comprobante_taller' : 'factura_sat';
-      const paymentStatus = req.body?.payment_status === 'cobrado' ? 'cobrado' : 'pendiente';
+      const docType = 'comprobante_taller';
+      const initialPaymentType = req.body?.initial_payment_type === 'advance' || req.body?.initial_payment_type === 'full' ? req.body.initial_payment_type : 'none';
+      const initialPaymentStatus = req.body?.initial_payment_status === 'cobrado' ? 'cobrado' : 'pendiente';
+      const initialPaymentAmount = round2(Number(req.body?.initial_payment_amount || 0));
+      const paymentStatus = initialPaymentType === 'full' && initialPaymentStatus === 'cobrado' ? 'cobrado' : 'pendiente';
       const productionStatus = String(req.body?.production_status || 'cola_espera');
       const dueDate = String(req.body?.due_date || new Date().toISOString().slice(0, 10));
 
-      if (!clientName || !material || !description || unitPriceGtq <= 0) {
+      if (!clientName || !material || !description || unitPriceGtq <= 0 || !Number.isFinite(quantity) || !Number.isFinite(estimatedMinutes)) {
         res.status(400).json({ error: 'Cliente, material, descripción y precio unitario mayor a Q 0.00 son requeridos' });
         return;
       }
 
       const grossTotal = round2(quantity * unitPriceGtq);
-      const { subtotal, iva, total } = computeGuatemalanTotals(grossTotal, docType);
+      if (initialPaymentType === 'advance' && (initialPaymentAmount <= 0 || initialPaymentAmount > grossTotal)) {
+        res.status(400).json({ error: 'El anticipo debe ser mayor a Q 0.00 y no superar el total de la orden' });
+        return;
+      }
+      const { subtotal, iva, total } = computeGuatemalanTotals(grossTotal);
 
       const countRow = await db.queryOne<{ max_id: number }>('SELECT COALESCE(MAX(id), 0) AS max_id FROM work_orders');
       const nextNum = Number(countRow?.max_id || 0) + 140;
       const orderCode = `OP-2026-${String(nextNum).padStart(4, '0')}`;
-      const satSeries = docType === 'factura_sat' ? 'A1B2' : null;
-      const satNumber = docType === 'factura_sat' ? String(481920 + nextNum).padStart(8, '0') : null;
+      const satSeries = null;
+      const satNumber = null;
 
       const insertRes = await db.run(
         `INSERT INTO work_orders (
@@ -815,11 +822,20 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
           subtotal,
           iva,
           total,
-          paymentStatus,
+          'pendiente',
           new Date().toISOString().slice(0, 10),
           req.user?.id || null,
         ]
       );
+      if (initialPaymentType !== 'none') {
+        const paymentResult = await recordOrderPayment(
+          db,
+          { id: insertRes.lastInsertRowid, order_code: orderCode, client_name: clientName, client_nit: clientNit, process_type: processType, total_gtq: total, payment_status: paymentStatus },
+          { type: initialPaymentType, status: initialPaymentStatus, amount: initialPaymentAmount },
+          req.user?.id || null
+        );
+        if (paymentResult.order) Object.assign({}, paymentResult.order);
+      }
 
       // If assigned machine and status is active, reflect on machine
       if (machineId && (productionStatus === 'en_produccion' || productionStatus === 'calentando')) {
@@ -872,7 +888,7 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
           ? round2(Math.max(0.01, Number(req.body.unit_price_gtq)))
           : Number(existing.unit_price_gtq);
 
-      const { subtotal, iva, total } = computeGuatemalanTotals(round2(quantity * unitPriceGtq), docType);
+      const { subtotal, iva, total } = computeGuatemalanTotals(round2(quantity * unitPriceGtq));
       const satSeries = docType === 'factura_sat' ? (existing.sat_series || 'A1B2') : null;
       const satNumber =
         docType === 'factura_sat'
@@ -1185,7 +1201,7 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
   app.post('/api/finances', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const entryType = req.body?.entry_type === 'ingreso' ? 'ingreso' : 'egreso';
-      const docType = req.body?.doc_type === 'comprobante_taller' ? 'comprobante_taller' : 'factura_sat';
+      const docType = 'comprobante_taller';
       const category = String(req.body?.category || '').trim();
       const description = String(req.body?.description || '').trim();
       const counterparty = String(req.body?.counterparty || '').trim();
@@ -1200,7 +1216,7 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
         return;
       }
 
-      const { subtotal, iva, total } = computeGuatemalanTotals(grossTotal, docType);
+      const { subtotal, iva, total } = computeGuatemalanTotals(grossTotal);
       const countRow = await db.queryOne<{ max_id: number }>(
         'SELECT COALESCE(MAX(id), 0) AS max_id FROM financial_entries'
       );
@@ -1254,7 +1270,7 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
           ? (req.body.doc_type as 'factura_sat' | 'comprobante_taller')
           : (String(existing.doc_type) as 'factura_sat' | 'comprobante_taller');
 
-      const { subtotal, iva, total } = computeGuatemalanTotals(Number(existing.total_gtq), docType);
+      const { subtotal, iva, total } = computeGuatemalanTotals(Number(existing.total_gtq));
 
       await db.run(
         'UPDATE financial_entries SET status = ?, doc_type = ?, subtotal_gtq = ?, iva_gtq = ?, total_gtq = ? WHERE id = ?',
