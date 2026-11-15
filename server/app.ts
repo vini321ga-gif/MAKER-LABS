@@ -1160,7 +1160,12 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
   app.delete('/api/inventory/:id', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = Number(req.params.id);
+      const reason = String(req.body?.reason || '').trim();
+      if (!reason) { res.status(400).json({ error: 'Escriba una justificación para eliminar el insumo' }); return; }
+      const item = await db.queryOne<{ sku: string; name: string; stock_qty: number }>('SELECT sku, name, stock_qty FROM inventory_items WHERE id = ?', [id]);
+      if (!item) { res.status(404).json({ error: 'Insumo no encontrado' }); return; }
       await db.run('DELETE FROM inventory_items WHERE id = ?', [id]);
+      await writeActivity(db, req.user || undefined, 'inventory_item_deleted', 'inventory', id, item.sku, 'Insumo ' + item.name + ', existencia ' + item.stock_qty + '. Justificación: ' + reason);
       res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Error eliminando insumo' });
