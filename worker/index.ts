@@ -49,7 +49,8 @@ export default {
         await ensureInitialized();
         return await handleExpressRequest(request);
       } catch (error) {
-        console.error('API initialization or request failed:', error);
+        const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+        console.error(`API initialization or request failed: ${detail}`);
         return Response.json({ error: 'El servidor no pudo procesar la solicitud' }, { status: 500 });
       }
     }
