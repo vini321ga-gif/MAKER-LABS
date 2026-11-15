@@ -399,7 +399,7 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
                               >
                                 {attachment.original_name}
                               </a>
-                              {canEdit && (
+                              {canDelete && (
                                 <button
                                   type="button"
                                   onClick={() => void removeAttachment(entry.id, attachment.id)}
