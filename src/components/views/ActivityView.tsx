@@ -78,7 +78,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({ events, loading, onR
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap">
                   <div className="text-[13px] font-medium text-[#0F172A]">{event.actor_name}</div>
-                  <div className="text-[11px] text-[#64748B]">{formatRoleLabel(event.actor_role as any)}</div>
+                  <div className="text-[11px] text-[#64748B]">{formatRoleLabel(event.actor_role)}</div>
                 </td>
                 <td className="px-4 py-3 text-[13px] font-medium text-[#1E293B]">
                   {ACTION_LABELS[event.action] || event.action}
