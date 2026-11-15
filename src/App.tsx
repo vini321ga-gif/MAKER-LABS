@@ -8,6 +8,7 @@ import { Sidebar } from './components/Sidebar';
 import { StatusPill } from './components/StatusPill';
 import { ToastContainer, type ToastMessage } from './components/Toast';
 import { AdminD1View } from './components/views/AdminD1View';
+import { ActivityView } from './components/views/ActivityView';
 import { DashboardView } from './components/views/DashboardView';
 import { DtfInventoryView } from './components/views/DtfInventoryView';
 import { FinancesView } from './components/views/FinancesView';
@@ -16,6 +17,7 @@ import { Print3DQueueView } from './components/views/Print3DQueueView';
 import { WorkOrdersView } from './components/views/WorkOrdersView';
 import { api } from './lib/api';
 import type {
+  ActivityEvent,
   DashboardPayload,
   DbStatusPayload,
   DocTypeFilter,
@@ -36,6 +38,7 @@ const SECTION_TITLES: Record<NavSection, string> = {
   uv_dtf: 'Inventario UV DTF',
   finances: 'Facturación y Finanzas',
   admin: 'Usuarios y Cloudflare D1',
+  activity: 'Registro de actividad',
 };
 
 export default function App() {
@@ -57,6 +60,8 @@ export default function App() {
   const [finances, setFinances] = useState<FinancesPayload | null>(null);
   const [dbStatus, setDbStatus] = useState<DbStatusPayload | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
 
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [orderModalProcess, setOrderModalProcess] = useState<MachineCategory>('3d_printing');
@@ -165,8 +170,10 @@ export default function App() {
   };
 
   const handleDeleteOrder = async (id: number) => {
+    const reason = window.prompt('Escribe la justificación para borrar esta orden:')?.trim();
+    if (!reason) { notify('info', 'No se borró la orden; se requiere una justificación.'); return; }
     try {
-      await api.deleteOrder(id);
+      await api.deleteOrder(id, reason);
       notify('success', 'Orden eliminada');
       if (user) await loadWorkspaceData(user, docFilter);
     } catch (err) {
@@ -185,8 +192,10 @@ export default function App() {
   };
 
   const handleDeleteInventoryItem = async (id: number) => {
+    const reason = window.prompt('Escribe la justificación para eliminar este insumo:')?.trim();
+    if (!reason) { notify('info', 'No se eliminó el insumo; se requiere una justificación.'); return; }
     try {
-      await api.deleteInventoryItem(id);
+      await api.deleteInventoryItem(id, reason);
       notify('success', 'Insumo eliminado');
       if (user) await loadWorkspaceData(user, docFilter);
     } catch (err) {
@@ -205,14 +214,34 @@ export default function App() {
   };
 
   const handleDeleteFinancialEntry = async (id: number) => {
+    const reason = window.prompt('Escribe la justificación para eliminar este movimiento financiero:')?.trim();
+    if (!reason) { notify('info', 'No se eliminó el movimiento; se requiere una justificación.'); return; }
     try {
-      await api.deleteFinancialEntry(id);
+      await api.deleteFinancialEntry(id, reason);
       notify('success', 'Asiento eliminado');
       if (user) await loadWorkspaceData(user, docFilter);
     } catch (err) {
       notify('error', err instanceof Error ? err.message : 'Error eliminando asiento');
     }
   };
+
+  const loadActivity = useCallback(async () => {
+    setActivityLoading(true);
+    try {
+      const result = await api.getActivityLog();
+      setActivityEvents(result.events);
+    } catch (err) {
+      notify('error', err instanceof Error ? err.message : 'No se pudo cargar el registro de actividad');
+    } finally {
+      setActivityLoading(false);
+    }
+  }, [notify]);
+
+  useEffect(() => {
+    if (user && activeSection === 'activity' && (user.role === 'admin' || user.role === 'finance')) {
+      void loadActivity();
+    }
+  }, [user, activeSection, loadActivity]);
 
   const openOrderModal = (process: MachineCategory = '3d_printing') => {
     setOrderModalProcess(process);
@@ -342,7 +371,8 @@ export default function App() {
               onChangeDocFilter={setDocFilter}
               onNavigate={setActiveSection}
               onOpenNewOrder={() => openOrderModal('3d_printing')}
-              onQuickMarkPaid={(o) => void handleRecordOrderPayment(o.id, { type: 'full', status: 'cobrado' }).catch((err) => notify('error', err instanceof Error ? err.message : 'Error registrando pago'))}
+              onQuickMarkPaid={(o) => handleRecordOrderPayment(o.id, { type: 'full', status: 'cobrado' })}
+              onQuickAdvance={(o, amount, status) => handleRecordOrderPayment(o.id, { type: 'advance', amount, status })}
               onQuickCompleteOrder={(o) => handleUpdateOrder(o.id, { production_status: 'completado' })}
               canViewBalances={canViewBalances}
               canViewFinancialDetails={canViewFinancialDetails}
@@ -414,6 +444,10 @@ export default function App() {
               canCreate={canRegisterFinancialEntries}
               canViewBalances={canViewBalances}
             />
+          )}
+
+          {activeSection === 'activity' && (user.role === 'admin' || user.role === 'finance') && (
+            <ActivityView events={activityEvents} loading={activityLoading} onRefresh={() => void loadActivity()} />
           )}
 
           {activeSection === 'admin' && user.role === 'admin' && (

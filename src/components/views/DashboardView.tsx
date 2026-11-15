@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, ArrowUpRight, CheckCircle2, Plus, TrendingUp } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, CheckCircle2, Eye, Plus, TrendingUp } from 'lucide-react';
 import { formatProcessLabel, formatQuetzales } from '../../lib/format';
 import type {
   DashboardPayload,
@@ -19,7 +19,8 @@ interface DashboardViewProps {
   onChangeDocFilter: (next: DocTypeFilter) => void;
   onNavigate: (section: NavSection) => void;
   onOpenNewOrder: () => void;
-  onQuickMarkPaid: (order: WorkOrder) => void;
+  onQuickMarkPaid: (order: WorkOrder) => Promise<unknown>;
+  onQuickAdvance: (order: WorkOrder, amount: number, status: 'pendiente' | 'cobrado') => Promise<unknown>;
   onQuickCompleteOrder: (order: WorkOrder) => void;
   canViewBalances: boolean;
   canViewFinancialDetails: boolean;
@@ -33,10 +34,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onNavigate,
   onOpenNewOrder,
   onQuickMarkPaid,
+  onQuickAdvance,
   onQuickCompleteOrder,
   canViewBalances,
   canViewFinancialDetails,
 }) => {
+  const [advanceOrder, setAdvanceOrder] = React.useState<WorkOrder | null>(null);
+  const [paymentType, setPaymentType] = React.useState<'advance' | 'full'>('advance');
+  const [advanceAmount, setAdvanceAmount] = React.useState('');
+  const [advanceStatus, setAdvanceStatus] = React.useState<'pendiente' | 'cobrado'>('cobrado');
+  const [advanceBusy, setAdvanceBusy] = React.useState(false);
+  const [advanceError, setAdvanceError] = React.useState('');
+
   if (loading && !data) {
     return (
       <div className="space-y-6 animate-pulse">
@@ -177,6 +186,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     {canViewFinancialDetails && (
                       <>
                         <th className="px-4 stitch-label-sm">Cobro</th>
+                        <th className="px-4 stitch-label-sm text-right">Abonos (Q)</th>
+                        <th className="px-4 stitch-label-sm text-right">Saldo pendiente (Q)</th>
                         <th className="px-4 stitch-label-sm text-right">Total (Q)</th>
                       </>
                     )}
@@ -187,7 +198,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <tbody>
                 {recentOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={canViewFinancialDetails ? 6 : 4} className="px-6 py-10 text-center text-[13px] text-[#64748B]">
+                    <td colSpan={canViewFinancialDetails ? 8 : 4} className="px-6 py-10 text-center text-[13px] text-[#64748B]">
                       No hay órdenes registradas para el filtro documental seleccionado.
                     </td>
                   </tr>
@@ -217,9 +228,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       {canViewFinancialDetails && (
                         <>
                           <td className="px-4">
-                            <StatusPill {...getFinancialStatusBadge(order.payment_status)} />
+                            {Number(order.amount_paid_gtq || 0) > 0 && Number(order.balance_due_gtq || 0) > 0
+                              ? <StatusPill label="Abono registrado" variant="blue" />
+                              : <StatusPill {...getFinancialStatusBadge(order.payment_status)} />}
+                          </td>
+                          <td className="px-4 text-right text-[13px] text-[#475569] tabular-metrics whitespace-nowrap">
+                            {formatQuetzales(Number(order.amount_paid_gtq || 0))}
                           </td>
                           <td className="px-4 text-right text-[13px] font-medium text-[#0F172A] tabular-metrics whitespace-nowrap">
+                            {formatQuetzales(Number(order.balance_due_gtq ?? order.total_gtq))}
+                          </td>
+                          <td className="px-4 text-right text-[13px] font-semibold text-[#0F172A] tabular-metrics whitespace-nowrap">
                             {formatQuetzales(order.total_gtq)}
                           </td>
                         </>
@@ -236,15 +255,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                               Completar
                             </button>
                           )}
-                          {canViewFinancialDetails && order.payment_status === 'pendiente' && (
-                            <button
-                              type="button"
-                              onClick={() => onQuickMarkPaid(order)}
-                              className="h-7 px-2.5 rounded-md bg-[#0F172A] hover:bg-[#1E293B] text-white text-[11px] font-medium transition-colors cursor-pointer"
-                            >
-                              Cobrar
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAdvanceOrder(order);
+                              setPaymentType('advance');
+                              setAdvanceAmount('');
+                              setAdvanceError('');
+                            }}
+                            className="h-7 px-2.5 rounded-md border border-[#E2E8F0] bg-white hover:bg-[#EFF6FF] text-[#2563EB] text-[11px] font-medium inline-flex items-center gap-1 transition-colors cursor-pointer"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            Visualizar
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -318,6 +341,87 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
       </div>
+      {advanceOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/40 backdrop-blur-[4px]">
+          <div className="w-full max-w-md rounded-2xl bg-white border border-[#E2E8F0] shadow-[0_20px_25px_-5px_rgba(15,23,42,0.12)] overflow-hidden">
+            <div className="px-6 py-4 border-b border-[#E2E8F0]">
+              <span className="stitch-label-sm">Orden {advanceOrder.order_code}</span>
+              <h3 className="text-[18px] font-semibold text-[#0F172A] mt-0.5">Detalle y pagos</h3>
+              <p className="text-[12px] text-[#64748B] mt-1">{advanceOrder.client_name} · {formatProcessLabel(advanceOrder.process_type)} · {advanceOrder.quantity} pzs</p>
+            </div>
+            {canViewFinancialDetails && (
+              <div className="grid grid-cols-3 gap-2 px-6 pt-5">
+                <div className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-[#64748B]">Total</div>
+                  <div className="mt-1 text-[14px] font-semibold text-[#0F172A] tabular-metrics">{formatQuetzales(advanceOrder.total_gtq)}</div>
+                </div>
+                <div className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-[#64748B]">Abonos registrados</div>
+                  <div className="mt-1 text-[14px] font-semibold text-[#0F172A] tabular-metrics">{formatQuetzales(Number(advanceOrder.amount_paid_gtq || 0))}</div>
+                </div>
+                <div className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-[#64748B]">Saldo pendiente</div>
+                  <div className="mt-1 text-[14px] font-semibold text-[#0F172A] tabular-metrics">{formatQuetzales(Number(advanceOrder.balance_due_gtq ?? advanceOrder.total_gtq))}</div>
+                </div>
+              </div>
+            )}
+            <form onSubmit={async (event) => {
+              event.preventDefault();
+              setAdvanceError('');
+              const amount = Number(advanceAmount);
+              if (paymentType === 'advance' && (!Number.isFinite(amount) || amount <= 0)) {
+                setAdvanceError('Ingrese un abono mayor a Q 0.00');
+                return;
+              }
+              setAdvanceBusy(true);
+              try {
+                if (paymentType === 'full') await onQuickMarkPaid(advanceOrder);
+                else await onQuickAdvance(advanceOrder, amount, advanceStatus);
+                setAdvanceOrder(null);
+                setAdvanceAmount('');
+              } catch (error) {
+                setAdvanceError(error instanceof Error ? error.message : 'No se pudo registrar el pago');
+              } finally {
+                setAdvanceBusy(false);
+              }
+            }} className="p-6 space-y-4">
+              {canViewFinancialDetails && (
+                <label className="block text-[12px] font-medium text-[#1E293B]">
+                  Movimiento
+                  <select value={paymentType} onChange={(e) => setPaymentType(e.target.value as 'advance' | 'full')} className="stitch-input w-full px-3 mt-1">
+                    <option value="advance">Registrar abono</option>
+                    <option value="full">Registrar pago total del saldo</option>
+                  </select>
+                </label>
+              )}
+              {paymentType === 'advance' ? (
+                <>
+                  <label className="block text-[12px] font-medium text-[#1E293B]">
+                    Monto del abono (Q)
+                    <input type="number" step="0.01" min="0.01" required value={advanceAmount} onChange={(e) => setAdvanceAmount(e.target.value)} className="stitch-input w-full px-3 mt-1 tabular-metrics" />
+                  </label>
+                  <label className="block text-[12px] font-medium text-[#1E293B]">
+                    Estado del abono
+                    <select value={advanceStatus} onChange={(e) => setAdvanceStatus(e.target.value as 'pendiente' | 'cobrado')} className="stitch-input w-full px-3 mt-1">
+                      <option value="cobrado">Pagado</option>
+                      <option value="pendiente">Pendiente</option>
+                    </select>
+                  </label>
+                </>
+              ) : (
+                <p className="text-[12px] text-[#475569]">Se registrará como pagado el saldo restante de la orden.</p>
+              )}
+              {advanceError && <div role="alert" className="text-[12px] text-[#DC2626]">{advanceError}</div>}
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setAdvanceOrder(null)} className="h-9 px-4 rounded-lg border border-[#E2E8F0] text-[13px] font-medium text-[#475569]">Cerrar</button>
+                <button type="submit" disabled={advanceBusy} className="h-9 px-4 rounded-lg bg-[#2563EB] text-white text-[13px] font-medium disabled:opacity-60">
+                  {advanceBusy ? 'Registrando...' : paymentType === 'full' ? 'Registrar pago total' : 'Registrar abono'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -84,6 +84,10 @@ export interface WorkOrder {
   deleted_at?: string | null;
   deleted_by?: number | null;
   deleted_by_name?: string | null;
+  deleted_reason?: string | null;
+  can_register_payment?: boolean;
+  amount_paid_gtq?: number;
+  balance_due_gtq?: number;
   created_at: string;
 }
 
@@ -124,6 +128,19 @@ export interface FinancialEntry {
   entry_date: string;
   created_by: number | null;
   created_by_name?: string | null;
+  created_at: string;
+}
+
+export interface ActivityEvent {
+  id: number;
+  actor_id: number | null;
+  actor_name: string;
+  actor_role: UserRole;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  entity_label: string;
+  details: string;
   created_at: string;
 }
 
@@ -183,4 +200,5 @@ export type NavSection =
   | 'uv_dtf'
   | 'orders'
   | 'finances'
-  | 'admin';
+  | 'admin'
+  | 'activity';

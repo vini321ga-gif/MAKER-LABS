@@ -57,8 +57,10 @@ export const AdminD1View: React.FC<AdminD1ViewProps> = ({
   };
 
   const handleDeleteUser = async (id: number) => {
+    const reason = window.prompt('Escribe la justificación para eliminar este usuario:')?.trim();
+    if (!reason) { onNotify('info', 'No se eliminó el usuario; se requiere una justificación.'); return; }
     try {
-      await api.deleteUser(id);
+      await api.deleteUser(id, reason);
       onNotify('success', 'Usuario eliminado');
       await onRefresh();
     } catch (err) {

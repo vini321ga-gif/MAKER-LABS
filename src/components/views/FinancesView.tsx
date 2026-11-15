@@ -77,10 +77,12 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
   };
 
   const removeAttachment = async (entryId: number, attachmentId: string) => {
+    const reason = window.prompt('Escribe la justificación para eliminar este adjunto:')?.trim();
+    if (!reason) { setAttachmentError('No se eliminó el adjunto; se requiere una justificación.'); return; }
     setAttachmentBusy(true);
     setAttachmentError(null);
     try {
-      await api.deleteFinancialAttachment(entryId, attachmentId);
+      await api.deleteFinancialAttachment(entryId, attachmentId, reason);
       await loadAttachments(entryId);
     } catch (err) {
       setAttachmentError(err instanceof Error ? err.message : 'Error eliminando archivo');

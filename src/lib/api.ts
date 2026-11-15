@@ -1,4 +1,5 @@
 import type {
+  ActivityEvent,
   DashboardPayload,
   DbStatusPayload,
   DocType,
@@ -57,10 +58,11 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ role }),
     }),
-  deleteUser: (id: number) => request<{ ok: boolean }>(`/api/users/${id}`, { method: 'DELETE' }),
+  deleteUser: (id: number, reason: string) => request<{ ok: boolean }>(`/api/users/${id}`, { method: 'DELETE', body: JSON.stringify({ reason }) }),
 
   // System & D1
   getDbStatus: () => request<DbStatusPayload>('/api/system/db-status'),
+  getActivityLog: () => request<{ events: ActivityEvent[] }>('/api/activity'),
 
   // Dashboard
   getDashboard: (docType: DocTypeFilter = 'all') =>
@@ -128,7 +130,7 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(payload),
     }),
-  deleteOrder: (id: number) => request<{ ok: boolean }>(`/api/orders/${id}`, { method: 'DELETE' }),
+  deleteOrder: (id: number, reason: string) => request<{ ok: boolean }>(`/api/orders/${id}`, { method: 'DELETE', body: JSON.stringify({ reason }) }),
 
   // Inventory
   getInventory: (params?: { search?: string; category?: string; low_stock?: boolean }) => {
@@ -152,8 +154,8 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(payload),
     }),
-  deleteInventoryItem: (id: number) =>
-    request<{ ok: boolean }>(`/api/inventory/${id}`, { method: 'DELETE' }),
+  deleteInventoryItem: (id: number, reason: string) =>
+    request<{ ok: boolean }>(`/api/inventory/${id}`, { method: 'DELETE', body: JSON.stringify({ reason }) }),
 
   // Finances
   getFinances: (params?: {
@@ -190,8 +192,8 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(payload),
     }),
-  deleteFinancialEntry: (id: number) =>
-    request<{ ok: boolean }>(`/api/finances/${id}`, { method: 'DELETE' }),
+  deleteFinancialEntry: (id: number, reason: string) =>
+    request<{ ok: boolean }>(`/api/finances/${id}`, { method: 'DELETE', body: JSON.stringify({ reason }) }),
 
   getFinancialAttachments: (entryId: number) =>
     request<{ attachments: FinancialAttachment[] }>(`/api/finances/${entryId}/attachments`),
@@ -210,8 +212,9 @@ export const api = {
     if (!response.ok) throw new Error(data.error || `Error HTTP ${response.status}`);
     return data as { attachment: FinancialAttachment };
   },
-  deleteFinancialAttachment: (entryId: number, attachmentId: string) =>
+  deleteFinancialAttachment: (entryId: number, attachmentId: string, reason: string) =>
     request<{ ok: boolean }>(`/api/finances/${entryId}/attachments/${encodeURIComponent(attachmentId)}`, {
       method: 'DELETE',
+      body: JSON.stringify({ reason }),
     }),
 };

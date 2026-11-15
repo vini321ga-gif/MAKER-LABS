@@ -25,6 +25,22 @@ export interface AppFileBucket {
   get(key: string): Promise<{ arrayBuffer(): Promise<ArrayBuffer> } | null>;
   delete(key: string): Promise<void>;
 }
+
+async function writeActivity(
+  db: AppDatabase,
+  actor: { id: number; name: string; role: UserRole } | undefined,
+  action: string,
+  entityType: string,
+  entityId: string | number | null,
+  entityLabel: string,
+  details: string
+): Promise<void> {
+  await db.run(
+    `INSERT INTO activity_log (actor_id, actor_name, actor_role, action, entity_type, entity_id, entity_label, details)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [actor?.id ?? null, actor?.name || 'Usuario desconocido', actor?.role || 'operator', action, entityType, entityId === null ? null : String(entityId), entityLabel, details]
+  );
+}
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
@@ -60,7 +76,7 @@ async function recordOrderPayment(
   db: AppDatabase,
   order: OrderPaymentOrder,
   input: OrderPaymentInput,
-  userId: number | null
+  actor: { id: number; name: string; role: UserRole } | undefined
 ): Promise<{ order: Record<string, unknown> | null; payment: Record<string, unknown> | null }> {
   const baselineCode = `FIN-${order.order_code}`;
   const baseline = await db.queryOne<{ id: number; total_gtq: number; status: string }>(
@@ -132,7 +148,7 @@ async function recordOrderPayment(
       [
         paymentCode, processLabel, paymentDescription, order.client_name, order.client_nit || 'CF',
         order.order_code, amountToRecord, amountToRecord, input.status,
-        new Date().toISOString().slice(0, 10), userId,
+        new Date().toISOString().slice(0, 10), actor?.id ?? null,
       ]
     );
     payment = await db.queryOne<Record<string, unknown>>('SELECT * FROM financial_entries WHERE id = ?', [inserted.lastInsertRowid]);
@@ -146,6 +162,12 @@ async function recordOrderPayment(
   const nextStatus = paidTotal >= total ? 'cobrado' : 'pendiente';
   await db.run('UPDATE work_orders SET payment_status = ? WHERE id = ?', [nextStatus, order.id]);
   const updatedOrder = await db.queryOne<Record<string, unknown>>('SELECT * FROM work_orders WHERE id = ?', [order.id]);
+  const loggedAmount = input.type === 'full' ? total : Number(input.amount || 0);
+  await writeActivity(
+    db, actor, input.type === 'advance' ? 'advance_registered' : 'full_payment_registered',
+    'financial_entry', payment?.id ? String(payment.id) : String(order.id), order.order_code,
+    `${input.type === 'advance' ? 'Anticipo' : 'Pago total'} de Q ${loggedAmount.toFixed(2)} registrado como ${input.status} para ${order.client_name}.`
+  );
   return { order: updatedOrder, payment };
 }
 
@@ -155,7 +177,10 @@ function hideFinancialOrderFields(order: Record<string, unknown>): Record<string
   delete sanitized.subtotal_gtq;
   delete sanitized.iva_gtq;
   delete sanitized.total_gtq;
+  sanitized.can_register_payment = order.payment_status !== 'cobrado' && order.payment_status !== 'anulado';
   delete sanitized.payment_status;
+  delete sanitized.amount_paid_gtq;
+  delete sanitized.balance_due_gtq;
   return sanitized;
 }
 
@@ -216,6 +241,20 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
   const app = express();
   app.use(express.json({ limit: '1mb' }));
   app.use((req, res, next) => attachAuth(db, req as AuthenticatedRequest, res, next));
+
+  // Activity audit (administrator and supervisor)
+  app.get('/api/activity', requireAuth, requireRole('admin', 'finance'), async (_req: AuthenticatedRequest, res: Response) => {
+    try {
+      const events = await db.queryAll<Record<string, unknown>>(
+        `SELECT id, actor_id, actor_name, actor_role, action, entity_type, entity_id,
+                entity_label, details, created_at
+         FROM activity_log ORDER BY created_at DESC, id DESC LIMIT 250`
+      );
+      res.json({ events });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Error consultando actividad' });
+    }
+  });
 
   // Health
   app.get('/api/health', async (_req: Request, res: Response) => {
@@ -438,16 +477,26 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
       requireRole('admin', 'finance'),
       async (req: AuthenticatedRequest, res: Response) => {
         try {
-          const attachment = await db.queryOne<{ object_key: string }>(
-            'SELECT object_key FROM financial_attachments WHERE id = ? AND financial_entry_id = ?',
+          const reason = String(req.body?.reason || '').trim();
+          if (!reason) { res.status(400).json({ error: 'Escriba una justificación para eliminar el adjunto' }); return; }
+          const attachment = await db.queryOne<{ object_key: string; original_name: string }>(
+            'SELECT object_key, original_name FROM financial_attachments WHERE id = ? AND financial_entry_id = ?',
             [req.params.attachmentId, Number(req.params.entryId)]
           );
           if (!attachment) {
             res.status(404).json({ error: 'Adjunto no encontrado' });
             return;
           }
+          const parent = await db.queryOne<{ entry_code: string }>(
+            'SELECT entry_code FROM financial_entries WHERE id = ?', [Number(req.params.entryId)]
+          );
           await files.delete(attachment.object_key);
           await db.run('DELETE FROM financial_attachments WHERE id = ?', [req.params.attachmentId]);
+          await writeActivity(
+            db, req.user || undefined, 'attachment_deleted', 'financial_attachment', req.params.attachmentId,
+            attachment.original_name,
+            'Adjunto de ' + (parent?.entry_code || req.params.entryId) + ' eliminado. Justificación: ' + reason
+          );
           res.json({ ok: true });
         } catch (err) {
           res.status(500).json({ error: err instanceof Error ? err.message : 'Error eliminando adjunto' });
@@ -460,7 +509,7 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
   app.get('/api/system/db-status', requireAuth, requireRole('admin'), async (_req: AuthenticatedRequest, res: Response) => {
     try {
       const status = await db.getStatus();
-      const tables = ['users', 'machines', 'work_orders', 'inventory_items', 'financial_entries', 'financial_attachments'] as const;
+      const tables = ['users', 'machines', 'work_orders', 'inventory_items', 'financial_entries', 'financial_attachments', 'activity_log'] as const;
       const counts: Record<string, number> = {};
       for (const table of tables) {
         const row = await db.queryOne<{ total: number }>(`SELECT COUNT(*) AS total FROM ${table}`);
@@ -536,11 +585,16 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
   app.delete('/api/users/:id', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = Number(req.params.id);
+      const reason = String(req.body?.reason || '').trim();
+      if (!reason) { res.status(400).json({ error: 'Escriba una justificación para eliminar el usuario' }); return; }
       if (req.user?.id === id) {
         res.status(400).json({ error: 'No puede eliminar su propio usuario activo' });
         return;
       }
+      const target = await db.queryOne<{ name: string; email: string; role: string }>('SELECT name, email, role FROM users WHERE id = ?', [id]);
+      if (!target) { res.status(404).json({ error: 'Usuario no encontrado' }); return; }
       await db.run('DELETE FROM users WHERE id = ?', [id]);
+      await writeActivity(db, req.user || undefined, 'user_deleted', 'user', id, target.name, 'Usuario ' + target.email + ' (' + target.role + ') eliminado. Justificación: ' + reason);
       res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Error al eliminar usuario' });
@@ -586,12 +640,44 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
         }
       }
 
-      const orders = hasDocFilter
-        ? await db.queryAll<Record<string, unknown>>(
-            'SELECT * FROM work_orders WHERE deleted_at IS NULL AND doc_type = ? ORDER BY id DESC',
-            [docTypeFilter]
-          )
-        : await db.queryAll<Record<string, unknown>>('SELECT * FROM work_orders WHERE deleted_at IS NULL ORDER BY id DESC');
+      const orders = await db.queryAll<Record<string, unknown>>(
+        `SELECT w.*,
+          CASE
+            WHEN w.payment_status = 'cobrado'
+             AND NOT EXISTS (
+               SELECT 1 FROM financial_entries p
+               WHERE p.order_code = w.order_code
+                 AND p.entry_code <> ('FIN-' || w.order_code)
+                 AND p.status <> 'anulado'
+             )
+            THEN w.total_gtq
+            ELSE COALESCE((
+              SELECT SUM(p.total_gtq) FROM financial_entries p
+              WHERE p.order_code = w.order_code
+                AND p.entry_code <> ('FIN-' || w.order_code)
+                AND p.status <> 'anulado'
+            ), 0)
+          END AS amount_paid_gtq,
+          MAX(0, w.total_gtq - CASE
+            WHEN w.payment_status = 'cobrado'
+             AND NOT EXISTS (
+               SELECT 1 FROM financial_entries p
+               WHERE p.order_code = w.order_code
+                 AND p.entry_code <> ('FIN-' || w.order_code)
+                 AND p.status <> 'anulado'
+             )
+            THEN w.total_gtq
+            ELSE COALESCE((
+              SELECT SUM(p.total_gtq) FROM financial_entries p
+              WHERE p.order_code = w.order_code
+                AND p.entry_code <> ('FIN-' || w.order_code)
+                AND p.status <> 'anulado'
+            ), 0)
+          END) AS balance_due_gtq
+        FROM work_orders w
+        WHERE w.deleted_at IS NULL
+        ORDER BY w.id DESC
+      );
 
       const machines = await db.queryAll<Record<string, unknown>>(
         'SELECT * FROM machines ORDER BY category ASC, id ASC'
@@ -848,7 +934,7 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
           db,
           { id: insertRes.lastInsertRowid, order_code: orderCode, client_name: clientName, client_nit: clientNit, process_type: processType, total_gtq: total, payment_status: paymentStatus },
           { type: initialPaymentType, status: initialPaymentStatus, amount: initialPaymentAmount },
-          req.user?.id || null
+          req.user || undefined
         );
       }
 
@@ -863,6 +949,10 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
       const created = await db.queryOne<Record<string, unknown>>('SELECT * FROM work_orders WHERE id = ?', [
         insertRes.lastInsertRowid,
       ]);
+      await writeActivity(
+        db, req.user || undefined, 'order_created', 'order', insertRes.lastInsertRowid, orderCode,
+        `Orden creada para ${clientName}: ${quantity} pieza(s), total Q ${total.toFixed(2)}.`
+      );
       res.status(201).json({
         order: req.user?.role === 'operator' && created ? hideFinancialOrderFields(created) : created,
       });
@@ -892,7 +982,7 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
         db,
         order,
         { type, status, amount: req.body?.amount === undefined ? undefined : Number(req.body.amount) },
-        req.user?.id || null
+        req.user || undefined
       );
       const updatedOrder = result.order;
       res.status(201).json({
@@ -999,8 +1089,10 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
   app.delete('/api/orders/:id', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = Number(req.params.id);
-      const existing = await db.queryOne<{ order_code: string; deleted_at: string | null }>(
-        'SELECT order_code, deleted_at FROM work_orders WHERE id = ?',
+      const reason = String(req.body?.reason || '').trim();
+      if (!reason) { res.status(400).json({ error: 'Escriba una justificación para borrar la orden' }); return; }
+      const existing = await db.queryOne<{ order_code: string; deleted_at: string | null; client_name: string; total_gtq: number }>(
+        'SELECT order_code, deleted_at, client_name, total_gtq FROM work_orders WHERE id = ?',
         [id]
       );
       if (!existing) {
@@ -1013,14 +1105,15 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
       }
       await db.run(
         `UPDATE work_orders
-         SET deleted_at = datetime('now'), deleted_by = ?, deleted_by_name = ?, payment_status = 'anulado'
+         SET deleted_at = datetime('now'), deleted_by = ?, deleted_by_name = ?, deleted_reason = ?, payment_status = 'anulado'
          WHERE id = ? AND deleted_at IS NULL`,
-        [req.user?.id || null, req.user?.name || 'Administrador', id]
+        [req.user?.id || null, req.user?.name || 'Administrador', reason, id]
       );
       await db.run(
         `UPDATE financial_entries SET status = 'anulado' WHERE order_code = ?`,
         [existing.order_code]
       );
+      await writeActivity(db, req.user || undefined, 'order_deleted', 'order', id, existing.order_code, 'Orden de ' + existing.client_name + ', total Q ' + Number(existing.total_gtq).toFixed(2) + '. Justificación: ' + reason);
       res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Error eliminando orden' });
@@ -1137,7 +1230,12 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
   app.delete('/api/inventory/:id', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = Number(req.params.id);
+      const reason = String(req.body?.reason || '').trim();
+      if (!reason) { res.status(400).json({ error: 'Escriba una justificación para eliminar el insumo' }); return; }
+      const item = await db.queryOne<{ sku: string; name: string; stock_qty: number }>('SELECT sku, name, stock_qty FROM inventory_items WHERE id = ?', [id]);
+      if (!item) { res.status(404).json({ error: 'Insumo no encontrado' }); return; }
       await db.run('DELETE FROM inventory_items WHERE id = ?', [id]);
+      await writeActivity(db, req.user || undefined, 'inventory_item_deleted', 'inventory', id, item.sku, 'Insumo ' + item.name + ', existencia ' + item.stock_qty + '. Justificación: ' + reason);
       res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Error eliminando insumo' });
@@ -1280,6 +1378,15 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
       const entry = await db.queryOne<Record<string, unknown>>('SELECT * FROM financial_entries WHERE id = ?', [
         insertRes.lastInsertRowid,
       ]);
+      await writeActivity(
+        db,
+        req.user || undefined,
+        entryType === 'ingreso' ? 'capital_income_created' : 'expense_created',
+        'financial_entry',
+        insertRes.lastInsertRowid,
+        entryCode,
+        `${entryType === 'ingreso' ? 'Ingreso' : 'Egreso'} de Q ${total.toFixed(2)} · ${category} · ${description} · contraparte: ${counterparty}.`
+      );
       res.status(201).json({ entry });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Error registrando movimiento financiero' });
@@ -1327,11 +1434,15 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
   app.delete('/api/finances/:id', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = Number(req.params.id);
-      const entry = await db.queryOne<{ order_code: string | null }>(
-        'SELECT order_code FROM financial_entries WHERE id = ?',
+      const reason = String(req.body?.reason || '').trim();
+      if (!reason) { res.status(400).json({ error: 'Escriba una justificación para eliminar el movimiento' }); return; }
+      const entry = await db.queryOne<{ order_code: string | null; entry_code: string; entry_type: string; category: string; description: string; total_gtq: number }>(
+        'SELECT order_code, entry_code, entry_type, category, description, total_gtq FROM financial_entries WHERE id = ?',
         [id]
       );
+      if (!entry) { res.status(404).json({ error: 'Movimiento financiero no encontrado' }); return; }
       await deleteFinancialEntry(db, files, id);
+      await writeActivity(db, req.user || undefined, 'financial_entry_deleted', 'financial_entry', id, entry.entry_code, entry.entry_type + ' de Q ' + Number(entry.total_gtq).toFixed(2) + ' · ' + entry.category + ' · ' + entry.description + '. Justificación: ' + reason);
 
       if (entry?.order_code) {
         const order = await db.queryOne<{ id: number; total_gtq: number; deleted_at: string | null }>(
