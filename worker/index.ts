@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import { httpServerHandler } from 'cloudflare:node';
+import { handleAsNodeRequest } from 'cloudflare:node';
 import express from 'express';
 import schemaSql from '../schema.sql?raw';
 import { createApiApp } from '../server/app.ts';
@@ -13,7 +13,6 @@ const workerEnv = env as typeof env & {
 const db = createD1Database(workerEnv.DB);
 const app = createApiApp(db, schemaSql, workerEnv.FILES);
 app.listen(3000);
-const handleExpressRequest = httpServerHandler({ port: 3000 });
 
 let initialization: Promise<void> | undefined;
 function ensureInitialized(): Promise<void> {
@@ -47,7 +46,7 @@ export default {
       process.env.NODE_ENV = workerEnv.APP_ENV === 'production' ? 'production' : 'development';
       try {
         await ensureInitialized();
-        return await handleExpressRequest(request);
+        return await handleAsNodeRequest(3000, request);
       } catch (error) {
         const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
         console.error(`API initialization or request failed: ${detail}`);
