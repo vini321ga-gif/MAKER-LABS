@@ -28,6 +28,8 @@ export const AdminD1View: React.FC<AdminD1ViewProps> = ({
   const [copiedSql, setCopiedSql] = useState(false);
 
   const isAdmin = currentUser.role === 'admin';
+  const primaryAdminId = users.find((user) => user.role === 'admin')?.id;
+  const canCreateUsers = isAdmin && primaryAdminId === currentUser.id;
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -189,10 +191,11 @@ export const AdminD1View: React.FC<AdminD1ViewProps> = ({
           </div>
         ) : (
           <div className="p-6 space-y-6">
-            <form
-              onSubmit={handleCreateUser}
-              className="grid grid-cols-1 md:grid-cols-5 gap-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4"
-            >
+            {canCreateUsers ? (
+              <form
+                onSubmit={handleCreateUser}
+                className="grid grid-cols-1 md:grid-cols-5 gap-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4"
+              >
               <input
                 type="text"
                 required
@@ -236,6 +239,11 @@ export const AdminD1View: React.FC<AdminD1ViewProps> = ({
                 {creating ? 'Creando...' : 'Agregar Usuario'}
               </button>
             </form>
+            ) : (
+              <p className="text-[13px] text-[#64748B]">
+                Solo la cuenta administradora inicial puede crear usuarios.
+              </p>
+            )}
 
             <div className="overflow-x-auto border border-[#E2E8F0] rounded-xl">
               <table className="w-full text-left border-collapse">
