@@ -534,8 +534,8 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
   // Dashboard aggregation
   app.get('/api/dashboard', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const docTypeFilter = String(req.query.doc_type || 'all');
-      const hasDocFilter = docTypeFilter === 'factura_sat' || docTypeFilter === 'comprobante_taller';
+      const docTypeFilter = 'all';
+      const hasDocFilter = false;
 
       const canViewBalances = req.user?.role !== 'operator';
       const entries = canViewBalances
@@ -828,13 +828,12 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
         ]
       );
       if (initialPaymentType !== 'none') {
-        const paymentResult = await recordOrderPayment(
+        await recordOrderPayment(
           db,
           { id: insertRes.lastInsertRowid, order_code: orderCode, client_name: clientName, client_nit: clientNit, process_type: processType, total_gtq: total, payment_status: paymentStatus },
           { type: initialPaymentType, status: initialPaymentStatus, amount: initialPaymentAmount },
           req.user?.id || null
         );
-        if (paymentResult.order) Object.assign({}, paymentResult.order);
       }
 
       // If assigned machine and status is active, reflect on machine
@@ -902,15 +901,9 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
       const productionStatus = req.body?.production_status
         ? String(req.body.production_status)
         : String(existing.production_status);
-      const paymentStatus =
-        canEditFinancialFields && req.body?.payment_status
-          ? String(req.body.payment_status)
-          : String(existing.payment_status);
+      const paymentStatus = String(existing.payment_status);
       const machineId = req.body?.machine_id !== undefined ? req.body.machine_id : existing.machine_id;
-      const docType =
-        canEditFinancialFields && (req.body?.doc_type === 'comprobante_taller' || req.body?.doc_type === 'factura_sat')
-          ? (req.body.doc_type as 'factura_sat' | 'comprobante_taller')
-          : (String(existing.doc_type) as 'factura_sat' | 'comprobante_taller');
+      const docType = 'comprobante_taller';
 
       const quantity =
         canEditFinancialFields && req.body?.quantity !== undefined
@@ -922,11 +915,8 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
           : Number(existing.unit_price_gtq);
 
       const { subtotal, iva, total } = computeGuatemalanTotals(round2(quantity * unitPriceGtq));
-      const satSeries = docType === 'factura_sat' ? (existing.sat_series || 'A1B2') : null;
-      const satNumber =
-        docType === 'factura_sat'
-          ? existing.sat_number || String(481920 + id).padStart(8, '0')
-          : null;
+      const satSeries = null;
+      const satNumber = null;
 
       await db.run(
         `UPDATE work_orders
@@ -948,14 +938,6 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
           total,
           id,
         ]
-      );
-
-      // Sync financial entry
-      await db.run(
-        `UPDATE financial_entries
-         SET status = ?, doc_type = ?, subtotal_gtq = ?, iva_gtq = ?, total_gtq = ?
-         WHERE order_code = ?`,
-        [paymentStatus, docType, subtotal, iva, total, String(existing.order_code)]
       );
 
       // Update machine state if applicable
@@ -1297,11 +1279,13 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
         return;
       }
 
+      if (existing.order_code) {
+        res.status(409).json({ error: 'Los pagos de una orden se registran desde el detalle de la orden' });
+        return;
+      }
+
       const status = String(req.body?.status || existing.status);
-      const docType =
-        req.body?.doc_type === 'factura_sat' || req.body?.doc_type === 'comprobante_taller'
-          ? (req.body.doc_type as 'factura_sat' | 'comprobante_taller')
-          : (String(existing.doc_type) as 'factura_sat' | 'comprobante_taller');
+      const docType = 'comprobante_taller';
 
       const { subtotal, iva, total } = computeGuatemalanTotals(Number(existing.total_gtq));
 
