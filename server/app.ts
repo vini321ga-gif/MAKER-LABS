@@ -25,6 +25,22 @@ export interface AppFileBucket {
   get(key: string): Promise<{ arrayBuffer(): Promise<ArrayBuffer> } | null>;
   delete(key: string): Promise<void>;
 }
+
+async function writeActivity(
+  db: AppDatabase,
+  actor: { id: number; name: string; role: UserRole } | undefined,
+  action: string,
+  entityType: string,
+  entityId: string | number | null,
+  entityLabel: string,
+  details: string
+): Promise<void> {
+  await db.run(
+    `INSERT INTO activity_log (actor_id, actor_name, actor_role, action, entity_type, entity_id, entity_label, details)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [actor?.id ?? null, actor?.name || 'Usuario desconocido', actor?.role || 'operator', action, entityType, entityId === null ? null : String(entityId), entityLabel, details]
+  );
+}
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
@@ -60,7 +76,7 @@ async function recordOrderPayment(
   db: AppDatabase,
   order: OrderPaymentOrder,
   input: OrderPaymentInput,
-  userId: number | null
+  actor: { id: number; name: string; role: UserRole } | undefined
 ): Promise<{ order: Record<string, unknown> | null; payment: Record<string, unknown> | null }> {
   const baselineCode = `FIN-${order.order_code}`;
   const baseline = await db.queryOne<{ id: number; total_gtq: number; status: string }>(
@@ -132,7 +148,7 @@ async function recordOrderPayment(
       [
         paymentCode, processLabel, paymentDescription, order.client_name, order.client_nit || 'CF',
         order.order_code, amountToRecord, amountToRecord, input.status,
-        new Date().toISOString().slice(0, 10), userId,
+        new Date().toISOString().slice(0, 10), actor?.id ?? null,
       ]
     );
     payment = await db.queryOne<Record<string, unknown>>('SELECT * FROM financial_entries WHERE id = ?', [inserted.lastInsertRowid]);
@@ -146,6 +162,12 @@ async function recordOrderPayment(
   const nextStatus = paidTotal >= total ? 'cobrado' : 'pendiente';
   await db.run('UPDATE work_orders SET payment_status = ? WHERE id = ?', [nextStatus, order.id]);
   const updatedOrder = await db.queryOne<Record<string, unknown>>('SELECT * FROM work_orders WHERE id = ?', [order.id]);
+  const loggedAmount = input.type === 'full' ? total : Number(input.amount || 0);
+  await writeActivity(
+    db, actor, input.type === 'advance' ? 'advance_registered' : 'full_payment_registered',
+    'financial_entry', payment?.id ? String(payment.id) : String(order.id), order.order_code,
+    `${input.type === 'advance' ? 'Anticipo' : 'Pago total'} de Q ${loggedAmount.toFixed(2)} registrado como ${input.status} para ${order.client_name}.`
+  );
   return { order: updatedOrder, payment };
 }
 
@@ -155,6 +177,7 @@ function hideFinancialOrderFields(order: Record<string, unknown>): Record<string
   delete sanitized.subtotal_gtq;
   delete sanitized.iva_gtq;
   delete sanitized.total_gtq;
+  sanitized.can_register_payment = order.payment_status !== 'cobrado' && order.payment_status !== 'anulado';
   delete sanitized.payment_status;
   return sanitized;
 }
