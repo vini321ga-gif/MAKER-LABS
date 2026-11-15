@@ -550,11 +550,16 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
   app.delete('/api/users/:id', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = Number(req.params.id);
+      const reason = String(req.body?.reason || '').trim();
+      if (!reason) { res.status(400).json({ error: 'Escriba una justificación para eliminar el usuario' }); return; }
       if (req.user?.id === id) {
         res.status(400).json({ error: 'No puede eliminar su propio usuario activo' });
         return;
       }
+      const target = await db.queryOne<{ name: string; email: string; role: string }>('SELECT name, email, role FROM users WHERE id = ?', [id]);
+      if (!target) { res.status(404).json({ error: 'Usuario no encontrado' }); return; }
       await db.run('DELETE FROM users WHERE id = ?', [id]);
+      await writeActivity(db, req.user || undefined, 'user_deleted', 'user', id, target.name, 'Usuario ' + target.email + ' (' + target.role + ') eliminado. Justificación: ' + reason);
       res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Error al eliminar usuario' });
