@@ -217,6 +217,20 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
   app.use(express.json({ limit: '1mb' }));
   app.use((req, res, next) => attachAuth(db, req as AuthenticatedRequest, res, next));
 
+  // Activity audit (administrator and supervisor)
+  app.get('/api/activity', requireAuth, requireRole('admin', 'finance'), async (_req: AuthenticatedRequest, res: Response) => {
+    try {
+      const events = await db.queryAll<Record<string, unknown>>(
+        `SELECT id, actor_id, actor_name, actor_role, action, entity_type, entity_id,
+                entity_label, details, created_at
+         FROM activity_log ORDER BY created_at DESC, id DESC LIMIT 250`
+      );
+      res.json({ events });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Error consultando actividad' });
+    }
+  });
+
   // Health
   app.get('/api/health', async (_req: Request, res: Response) => {
     const status = await db.getStatus();
@@ -863,6 +877,10 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
       const created = await db.queryOne<Record<string, unknown>>('SELECT * FROM work_orders WHERE id = ?', [
         insertRes.lastInsertRowid,
       ]);
+      await writeActivity(
+        db, req.user || undefined, 'order_created', 'order', insertRes.lastInsertRowid, orderCode,
+        `Orden creada para ${clientName}: ${quantity} pieza(s), total Q ${total.toFixed(2)}.`
+      );
       res.status(201).json({
         order: req.user?.role === 'operator' && created ? hideFinancialOrderFields(created) : created,
       });
@@ -1280,6 +1298,15 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
       const entry = await db.queryOne<Record<string, unknown>>('SELECT * FROM financial_entries WHERE id = ?', [
         insertRes.lastInsertRowid,
       ]);
+      await writeActivity(
+        db,
+        req.user || undefined,
+        entryType === 'ingreso' ? 'capital_income_created' : 'expense_created',
+        'financial_entry',
+        insertRes.lastInsertRowid,
+        entryCode,
+        `${entryType === 'ingreso' ? 'Ingreso' : 'Egreso'} de Q ${total.toFixed(2)} · ${category} · ${description} · contraparte: ${counterparty}.`
+      );
       res.status(201).json({ entry });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Error registrando movimiento financiero' });
