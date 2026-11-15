@@ -133,7 +133,7 @@ export interface ActivityEvent {
   id: number;
   actor_id: number | null;
   actor_name: string;
-  actor_role: UserRole | string;
+  actor_role: UserRole;
   action: string;
   entity_type: string;
   entity_id: string | null;
