@@ -51,7 +51,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       ? machineId
       : filteredMachines[0]?.id || '';
 
-breakdown  if (!open) return null;
+  if (!open) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
