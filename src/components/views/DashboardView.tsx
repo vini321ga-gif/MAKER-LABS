@@ -170,12 +170,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-[#F8FAFC] h-10 border-b border-[#E2E8F0]">
-                  <th className="px-4 stitch-label-sm">Orden</th>
-                  <th className="px-4 stitch-label-sm">Cliente / Proceso</th>
-                  <th className="px-4 stitch-label-sm">Producción</th>
-                  {canViewFinancialDetails && <th className="px-4 stitch-label-sm">Cobro</th>}
-                  {canViewFinancialDetails && <th className="px-4 stitch-label-sm text-right">Total (Q)</th>
-                  <th className="px-4 stitch-label-sm text-right">Acción</th>
+                  <>
+                    <th className="px-4 stitch-label-sm">Orden</th>
+                    <th className="px-4 stitch-label-sm">Cliente / Proceso</th>
+                    <th className="px-4 stitch-label-sm">Producción</th>
+                    {canViewFinancialDetails && (
+                      <>
+                        <th className="px-4 stitch-label-sm">Cobro</th>
+                        <th className="px-4 stitch-label-sm text-right">Total (Q)</th>
+                      </>
+                    )}
+                    <th className="px-4 stitch-label-sm text-right">Acción</th>
+                  </>
                 </tr>
               </thead>
               <tbody>
