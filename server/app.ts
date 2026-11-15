@@ -677,6 +677,7 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
         FROM work_orders w
         WHERE w.deleted_at IS NULL
         ORDER BY w.id DESC
+        `
       );
 
       const machines = await db.queryAll<Record<string, unknown>>(
