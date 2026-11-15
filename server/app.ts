@@ -179,6 +179,8 @@ function hideFinancialOrderFields(order: Record<string, unknown>): Record<string
   delete sanitized.total_gtq;
   sanitized.can_register_payment = order.payment_status !== 'cobrado' && order.payment_status !== 'anulado';
   delete sanitized.payment_status;
+  delete sanitized.amount_paid_gtq;
+  delete sanitized.balance_due_gtq;
   return sanitized;
 }
 
@@ -638,12 +640,44 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
         }
       }
 
-      const orders = hasDocFilter
-        ? await db.queryAll<Record<string, unknown>>(
-            'SELECT * FROM work_orders WHERE deleted_at IS NULL AND doc_type = ? ORDER BY id DESC',
-            [docTypeFilter]
-          )
-        : await db.queryAll<Record<string, unknown>>('SELECT * FROM work_orders WHERE deleted_at IS NULL ORDER BY id DESC');
+      const orders = await db.queryAll<Record<string, unknown>>(
+        `SELECT w.*,
+          CASE
+            WHEN w.payment_status = 'cobrado'
+             AND NOT EXISTS (
+               SELECT 1 FROM financial_entries p
+               WHERE p.order_code = w.order_code
+                 AND p.entry_code <> ('FIN-' || w.order_code)
+                 AND p.status <> 'anulado'
+             )
+            THEN w.total_gtq
+            ELSE COALESCE((
+              SELECT SUM(p.total_gtq) FROM financial_entries p
+              WHERE p.order_code = w.order_code
+                AND p.entry_code <> ('FIN-' || w.order_code)
+                AND p.status <> 'anulado'
+            ), 0)
+          END AS amount_paid_gtq,
+          MAX(0, w.total_gtq - CASE
+            WHEN w.payment_status = 'cobrado'
+             AND NOT EXISTS (
+               SELECT 1 FROM financial_entries p
+               WHERE p.order_code = w.order_code
+                 AND p.entry_code <> ('FIN-' || w.order_code)
+                 AND p.status <> 'anulado'
+             )
+            THEN w.total_gtq
+            ELSE COALESCE((
+              SELECT SUM(p.total_gtq) FROM financial_entries p
+              WHERE p.order_code = w.order_code
+                AND p.entry_code <> ('FIN-' || w.order_code)
+                AND p.status <> 'anulado'
+            ), 0)
+          END) AS balance_due_gtq
+        FROM work_orders w
+        WHERE w.deleted_at IS NULL
+        ORDER BY w.id DESC
+      );
 
       const machines = await db.queryAll<Record<string, unknown>>(
         'SELECT * FROM machines ORDER BY category ASC, id ASC'
