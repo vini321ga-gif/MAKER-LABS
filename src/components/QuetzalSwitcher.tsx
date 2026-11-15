@@ -1,8 +1,9 @@
 import React from 'react';
+import type { DocTypeFilter } from '../types/workshop';
 
 interface QuetzalSwitcherProps {
-  value?: unknown;
-  onChange?: (next: never) => void;
+  value: DocTypeFilter;
+  onChange: (next: DocTypeFilter) => void;
 }
 
 export const QuetzalSwitcher: React.FC<QuetzalSwitcherProps> = () => (
