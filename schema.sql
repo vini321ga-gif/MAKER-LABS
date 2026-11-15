@@ -87,7 +87,19 @@ CREATE TABLE IF NOT EXISTS financial_entries (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS financial_attachments (
+  id TEXT PRIMARY KEY,
+  financial_entry_id INTEGER NOT NULL REFERENCES financial_entries(id) ON DELETE CASCADE,
+  object_key TEXT NOT NULL UNIQUE,
+  original_name TEXT NOT NULL,
+  content_type TEXT NOT NULL,
+  size_bytes INTEGER NOT NULL CHECK(size_bytes > 0),
+  uploaded_by INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_work_orders_process ON work_orders(process_type);
 CREATE INDEX IF NOT EXISTS idx_work_orders_status ON work_orders(production_status, payment_status);
 CREATE INDEX IF NOT EXISTS idx_financial_entries_date ON financial_entries(entry_date);
 CREATE INDEX IF NOT EXISTS idx_financial_entries_doc ON financial_entries(doc_type, entry_type);
+CREATE INDEX IF NOT EXISTS idx_financial_attachments_entry ON financial_attachments(financial_entry_id, created_at);

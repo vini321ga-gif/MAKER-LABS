@@ -4,6 +4,7 @@ import type {
   DocType,
   DocTypeFilter,
   FinancesPayload,
+  FinancialAttachment,
   FinancialEntry,
   InventoryItem,
   Machine,
@@ -182,4 +183,26 @@ export const api = {
     }),
   deleteFinancialEntry: (id: number) =>
     request<{ ok: boolean }>(`/api/finances/${id}`, { method: 'DELETE' }),
+
+  getFinancialAttachments: (entryId: number) =>
+    request<{ attachments: FinancialAttachment[] }>(`/api/finances/${entryId}/attachments`),
+  uploadFinancialAttachment: async (entryId: number, file: File) => {
+    const response = await fetch(`/api/finances/${entryId}/attachments`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'X-File-Name': encodeURIComponent(file.name),
+        'X-File-Content-Type': file.type || 'application/octet-stream',
+      },
+      body: file,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `Error HTTP ${response.status}`);
+    return data as { attachment: FinancialAttachment };
+  },
+  deleteFinancialAttachment: (entryId: number, attachmentId: string) =>
+    request<{ ok: boolean }>(`/api/finances/${entryId}/attachments/${encodeURIComponent(attachmentId)}`, {
+      method: 'DELETE',
+    }),
 };
