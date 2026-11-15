@@ -10,7 +10,7 @@ interface AuthScreenProps {
 const ACCESS_PROFILES = [
   { label: 'Director / Admin', detail: 'Primera cuenta · Registro', role: 'Control Total' },
   { label: 'Operador Planta', detail: 'Alta desde Usuarios y Roles', role: '3D · Láser · DTF' },
-  { label: 'Finanzas SAT', detail: 'Alta desde Usuarios y Roles', role: 'Contabilidad Q' },
+  { label: 'Finanzas', detail: 'Alta desde Usuarios y Roles', role: 'Contabilidad Q' },
 ];
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
@@ -50,7 +50,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
               PrecisionHub
             </h1>
             <p className="text-[13px] text-[#64748B]">
-              Manufactura Aditiva, Corte Láser, UV DTF y Finanzas SAT
+              Manufactura Aditiva, Corte Láser, UV DTF y Finanzas
             </p>
           </div>
         </div>
