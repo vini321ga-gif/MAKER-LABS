@@ -200,8 +200,14 @@ export const QuotesView: React.FC = () => {
 
           <article className="quote-print-area stitch-card p-6 sm:p-8 max-w-3xl">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 border-b border-[#E2E8F0] pb-5">
-              <div>
-                <div className="text-[23px] font-semibold tracking-[-0.02em] text-[#0F172A]">Maker Labs</div>
+              <div className="flex items-center gap-4">
+                <img
+                  src="/maker-labs-logo.jpg"
+                  alt="Maker Labs — De la idea a la realidad"
+                  width={240}
+                  height={240}
+                  className="h-28 w-28 shrink-0 rounded-lg object-contain bg-black print:bg-black"
+                />
                 <p className="text-[12px] text-[#64748B] mt-1">Manufactura aditiva · Corte láser · UV DTF</p>
               </div>
               <div className="sm:text-right">
