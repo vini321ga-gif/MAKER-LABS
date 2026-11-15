@@ -310,50 +310,9 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
     }
   });
 
-  app.post('/api/auth/register', async (req: Request, res: Response) => {
-    try {
-      const email = String(req.body?.email || '').trim().toLowerCase();
-      const name = String(req.body?.name || '').trim();
-      const password = String(req.body?.password || '');
-      if (!email || !name || password.length < 6) {
-        res.status(400).json({ error: 'Nombre, correo válido y contraseña (mín. 6 caracteres) son obligatorios' });
-        return;
-      }
-
-      const existing = await db.queryOne<{ id: number }>('SELECT id FROM users WHERE lower(email) = ?', [email]);
-      if (existing) {
-        res.status(409).json({ error: 'Ya existe una cuenta con ese correo electrónico' });
-        return;
-      }
-
-      const passwordHash = hashPassword(password);
-      const inserted = await db.run(
-        `INSERT INTO users (email, name, role, password_hash)
-         VALUES (?, ?, CASE WHEN NOT EXISTS (SELECT 1 FROM users) THEN 'admin' ELSE 'operator' END, ?)`,
-        [email, name, passwordHash]
-      );
-      const userId = inserted.lastInsertRowid;
-      const userRow = await db.queryOne<AuthUser>(
-        'SELECT id, email, name, role, created_at FROM users WHERE id = ?',
-        [userId]
-      );
-
-      if (!userRow) {
-        res.status(500).json({ error: 'No se pudo recuperar el usuario creado' });
-        return;
-      }
-
-      const { rawId, signedToken, expiresAt } = createSessionToken();
-      await db.run('INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)', [
-        rawId,
-        userRow.id,
-        expiresAt,
-      ]);
-      setSessionCookie(res, signedToken);
-      res.status(201).json({ user: userRow });
-    } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : 'Error al registrar cuenta' });
-    }
+  // Public self-registration is disabled. Administrators create accounts via /api/users.
+  app.post('/api/auth/register', (_req: Request, res: Response) => {
+    res.status(403).json({ error: 'El registro está cerrado. Solicita una cuenta al administrador.' });
   });
 
   app.post('/api/auth/logout', async (req: AuthenticatedRequest, res: Response) => {
