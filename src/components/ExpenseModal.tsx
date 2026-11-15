@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { api } from '../lib/api';
-import { calculateSatBreakdown, formatQuetzales } from '../lib/format';
-import type { DocType, FinancialEntry } from '../types/workshop';
+import { formatQuetzales } from '../lib/format';
+import type { FinancialEntry } from '../types/workshop';
 
 interface ExpenseModalProps {
   open: boolean;
@@ -13,32 +13,33 @@ interface ExpenseModalProps {
 
 export const ExpenseModal: React.FC<ExpenseModalProps> = ({ open, onClose, onCreated, onError }) => {
   const [entryType, setEntryType] = useState<'egreso' | 'ingreso'>('egreso');
-  const [docType, setDocType] = useState<DocType>('factura_sat');
   const [category, setCategory] = useState('Insumos y Filamentos');
   const [counterparty, setCounterparty] = useState('');
-  const [nit, setNit] = useState('CF');
   const [description, setDescription] = useState('');
-  const [totalGtq, setTotalGtq] = useState(500);
+  const [totalGtq, setTotalGtq] = useState('');
   const [entryDate, setEntryDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [status, setStatus] = useState<'cobrado' | 'pendiente'>('cobrado');
   const [submitting, setSubmitting] = useState(false);
-
-  const breakdown = useMemo(() => calculateSatBreakdown(totalGtq, docType), [totalGtq, docType]);
 
   if (!open) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const amount = Number(totalGtq);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      onError('Ingrese un monto mayor a Q 0.00');
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await api.createFinancialEntry({
         entry_type: entryType,
-        doc_type: docType,
+        doc_type: 'comprobante_taller',
         category,
         description,
         counterparty,
-        nit,
-        total_gtq: totalGtq,
+        nit: 'CF',
+        total_gtq: amount,
         entry_date: entryDate,
         status: entryType === 'egreso' ? 'egreso' : status,
       });
@@ -71,37 +72,15 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ open, onClose, onCre
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[12px] font-medium text-[#1E293B] mb-1">Tipo</label>
-              <select
-                value={entryType}
-                onChange={(e) => {
-                  const t = e.target.value as 'egreso' | 'ingreso';
-                  setEntryType(t);
-                  setCategory(t === 'egreso' ? 'Insumos y Filamentos' : 'Servicios Especiales');
-                }}
-                className="stitch-input w-full px-3"
-              >
-                <option value="egreso">Egreso / Gasto Operativo</option>
-                <option value="ingreso">Ingreso Directo</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[12px] font-medium text-[#1E293B] mb-1">Régimen</label>
-              <select
-                value={docType}
-                onChange={(e) => setDocType(e.target.value as DocType)}
-                className="stitch-input w-full px-3"
-              >
-                <option value="factura_sat">Factura SAT (12% IVA)</option>
-                <option value="comprobante_taller">Comprobante Taller</option>
-              </select>
-            </div>
+          <div>
+            <label className="block text-[12px] font-medium text-[#1E293B] mb-1">Tipo</label>
+            <select value={entryType} onChange={(e) => { const t = e.target.value as 'egreso' | 'ingreso'; setEntryType(t); setCategory(t === 'egreso' ? 'Insumos y Filamentos' : 'Servicios Especiales'); }} className="stitch-input w-full px-3">
+              <option value="egreso">Egreso / Gasto Operativo</option><option value="ingreso">Ingreso Directo</option>
+            </select>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="sm:col-span-2">
+          <div className="grid grid-cols-1 gap-3">
+            <div>
               <label className="block text-[12px] font-medium text-[#1E293B] mb-1">
                 {entryType === 'egreso' ? 'Proveedor *' : 'Cliente *'}
               </label>
@@ -112,15 +91,6 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ open, onClose, onCre
                 onChange={(e) => setCounterparty(e.target.value)}
                 placeholder="Ej. 3DTech Guatemala S.A."
                 className="stitch-input w-full px-3"
-              />
-            </div>
-            <div>
-              <label className="block text-[12px] font-medium text-[#1E293B] mb-1">NIT</label>
-              <input
-                type="text"
-                value={nit}
-                onChange={(e) => setNit(e.target.value)}
-                className="stitch-input w-full px-3 tabular-metrics"
               />
             </div>
           </div>
@@ -173,7 +143,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ open, onClose, onCre
                   min={0.01}
                   required
                   value={totalGtq}
-                  onChange={(e) => setTotalGtq(Math.max(0.01, Number(e.target.value) || 0))}
+                  onChange={(e) => setTotalGtq(e.target.value)}
                   className="h-[36px] w-full px-3 text-[13px] text-[#0F172A] bg-white focus:outline-none tabular-metrics"
                 />
               </div>
@@ -194,13 +164,8 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ open, onClose, onCre
           </div>
 
           <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3.5 flex items-center justify-between text-[12px] tabular-metrics">
-            <span className="text-[#64748B]">
-              Base: <strong className="text-[#0F172A]">{formatQuetzales(breakdown.subtotal)}</strong> · IVA:{' '}
-              <strong className="text-[#0F172A]">{formatQuetzales(breakdown.iva)}</strong>
-            </span>
-            <span className="text-[15px] font-semibold text-[#0F172A]">
-              {formatQuetzales(breakdown.total)}
-            </span>
+            <span className="text-[#64748B]">Monto final registrado</span>
+            <span className="text-[15px] font-semibold text-[#0F172A]">{formatQuetzales(Number(totalGtq) || 0)}</span>
           </div>
 
           <div className="flex justify-end gap-2.5 pt-2 border-t border-[#E2E8F0]">

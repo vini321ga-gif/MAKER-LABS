@@ -40,17 +40,113 @@ async function deleteFinancialEntry(db: AppDatabase, files: AppFileBucket | unde
   await db.run('DELETE FROM financial_entries WHERE id = ?', [id]);
 }
 
-function computeGuatemalanTotals(
-  grossTotal: number,
-  docType: 'factura_sat' | 'comprobante_taller'
-): { subtotal: number; iva: number; total: number } {
+function computeGuatemalanTotals(grossTotal: number): { subtotal: number; iva: number; total: number } {
   const total = round2(Math.max(0, grossTotal));
-  if (docType === 'factura_sat') {
-    const subtotal = round2(total / 1.12);
-    const iva = round2(total - subtotal);
-    return { subtotal, iva, total };
-  }
   return { subtotal: total, iva: 0, total };
+}
+
+type OrderPaymentInput = { type: 'advance' | 'full'; status: 'pendiente' | 'cobrado'; amount?: number };
+type OrderPaymentOrder = {
+  id: number;
+  order_code: string;
+  client_name: string;
+  client_nit: string;
+  process_type: string;
+  total_gtq: number;
+  payment_status: string;
+};
+
+async function recordOrderPayment(
+  db: AppDatabase,
+  order: OrderPaymentOrder,
+  input: OrderPaymentInput,
+  userId: number | null
+): Promise<{ order: Record<string, unknown> | null; payment: Record<string, unknown> | null }> {
+  const baselineCode = `FIN-${order.order_code}`;
+  const baseline = await db.queryOne<{ id: number; total_gtq: number; status: string }>(
+    'SELECT id, total_gtq, status FROM financial_entries WHERE entry_code = ?',
+    [baselineCode]
+  );
+  const payments = await db.queryAll<{ id: number; total_gtq: number; status: string; description: string }>(
+    'SELECT id, total_gtq, status, description FROM financial_entries WHERE order_code = ? AND entry_code <> ? ORDER BY id ASC',
+    [order.order_code, baselineCode]
+  );
+  const total = round2(Number(order.total_gtq) || 0);
+  const legacyPaidBaseline = Boolean(baseline && baseline.status === 'cobrado' && Number(baseline.total_gtq) > 0 && payments.length === 0);
+  let outstanding = baseline
+    ? round2(Math.max(0, Number(baseline.total_gtq) || 0))
+    : round2(Math.max(0, total - payments.reduce((sum, payment) => sum + Number(payment.total_gtq || 0), 0)));
+  const alreadyPaid = legacyPaidBaseline || payments
+    .filter((payment) => payment.status === 'cobrado')
+    .reduce((sum, payment) => sum + Number(payment.total_gtq || 0), 0) >= total;
+  if (alreadyPaid) throw new Error('La orden ya está pagada');
+  if (legacyPaidBaseline) outstanding = 0;
+
+  let amountToRecord = outstanding;
+  const existingAdvance = input.type === 'advance' && input.status === 'cobrado'
+    ? payments.find((payment) => payment.status === 'pendiente'
+      && payment.description.startsWith(`Anticipo de orden ${order.order_code}`)
+      && round2(Number(payment.total_gtq)) === round2(Number(input.amount)))
+    : undefined;
+  if (existingAdvance) {
+    amountToRecord = 0;
+    await db.run('UPDATE financial_entries SET status = ? WHERE id = ?', ['cobrado', existingAdvance.id]);
+  } else if (input.type === 'advance') {
+    amountToRecord = round2(Number(input.amount));
+    if (!Number.isFinite(amountToRecord) || amountToRecord <= 0 || amountToRecord > outstanding) {
+      throw new Error('El anticipo debe ser mayor a Q 0.00 y no superar el saldo pendiente de la orden');
+    }
+    outstanding = round2(outstanding - amountToRecord);
+  } else if (input.type === 'full') {
+    outstanding = 0;
+  } else {
+    throw new Error('Tipo de pago no válido');
+  }
+
+  if (input.type === 'full' && input.status === 'cobrado') {
+    await db.run(
+      'UPDATE financial_entries SET status = ? WHERE order_code = ? AND entry_code <> ? AND status = ?',
+      ['cobrado', order.order_code, baselineCode, 'pendiente']
+    );
+  }
+
+  if (baseline) {
+    await db.run(
+      'UPDATE financial_entries SET subtotal_gtq = ?, iva_gtq = 0, total_gtq = ?, status = ? WHERE id = ?',
+      [outstanding, outstanding, 'pendiente', baseline.id]
+    );
+  }
+
+  let payment: Record<string, unknown> | null = existingAdvance
+    ? await db.queryOne<Record<string, unknown>>('SELECT * FROM financial_entries WHERE id = ?', [existingAdvance.id])
+    : null;
+  if (amountToRecord > 0) {
+    const paymentCode = `FIN-${order.order_code}-PAY-${randomUUID().slice(0, 8).toUpperCase()}`;
+    const processLabel = order.process_type === '3d_printing' ? 'Impresión 3D' : order.process_type === 'laser' ? 'Corte Láser' : 'Impresión UV DTF';
+    const paymentDescription = input.type === 'advance' ? `Anticipo de orden ${order.order_code}` : `Pago total de orden ${order.order_code}`;
+    const inserted = await db.run(
+      `INSERT INTO financial_entries (
+        entry_code, entry_type, doc_type, category, description, counterparty,
+        nit, order_code, subtotal_gtq, iva_gtq, total_gtq, status, entry_date, created_by
+      ) VALUES (?, 'ingreso', 'comprobante_taller', ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+      [
+        paymentCode, processLabel, paymentDescription, order.client_name, order.client_nit || 'CF',
+        order.order_code, amountToRecord, amountToRecord, input.status,
+        new Date().toISOString().slice(0, 10), userId,
+      ]
+    );
+    payment = await db.queryOne<Record<string, unknown>>('SELECT * FROM financial_entries WHERE id = ?', [inserted.lastInsertRowid]);
+  }
+
+  const refreshed = await db.queryAll<{ total_gtq: number; status: string }>(
+    'SELECT total_gtq, status FROM financial_entries WHERE order_code = ? AND entry_code <> ?',
+    [order.order_code, baselineCode]
+  );
+  const paidTotal = refreshed.reduce((sum, entry) => sum + (entry.status === 'cobrado' ? Number(entry.total_gtq || 0) : 0), legacyPaidBaseline ? total : 0);
+  const nextStatus = paidTotal >= total ? 'cobrado' : 'pendiente';
+  await db.run('UPDATE work_orders SET payment_status = ? WHERE id = ?', [nextStatus, order.id]);
+  const updatedOrder = await db.queryOne<Record<string, unknown>>('SELECT * FROM work_orders WHERE id = ?', [order.id]);
+  return { order: updatedOrder, payment };
 }
 
 function hideFinancialOrderFields(order: Record<string, unknown>): Record<string, unknown> {
@@ -454,8 +550,8 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
   // Dashboard aggregation
   app.get('/api/dashboard', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const docTypeFilter = String(req.query.doc_type || 'all');
-      const hasDocFilter = docTypeFilter === 'factura_sat' || docTypeFilter === 'comprobante_taller';
+      const docTypeFilter = 'all';
+      const hasDocFilter = false;
 
       const canViewBalances = req.user?.role !== 'operator';
       const entries = canViewBalances
@@ -666,24 +762,31 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
       const quantity = Math.max(1, Math.floor(Number(req.body?.quantity || 1)));
       const estimatedMinutes = Math.max(5, Math.floor(Number(req.body?.estimated_minutes || 60)));
       const unitPriceGtq = round2(Math.max(0.01, Number(req.body?.unit_price_gtq || 0)));
-      const docType = req.body?.doc_type === 'comprobante_taller' ? 'comprobante_taller' : 'factura_sat';
-      const paymentStatus = req.body?.payment_status === 'cobrado' ? 'cobrado' : 'pendiente';
+      const docType = 'comprobante_taller';
+      const initialPaymentType = req.body?.initial_payment_type === 'advance' || req.body?.initial_payment_type === 'full' ? req.body.initial_payment_type : 'none';
+      const initialPaymentStatus = req.body?.initial_payment_status === 'cobrado' ? 'cobrado' : 'pendiente';
+      const initialPaymentAmount = round2(Number(req.body?.initial_payment_amount || 0));
+      const paymentStatus = initialPaymentType === 'full' && initialPaymentStatus === 'cobrado' ? 'cobrado' : 'pendiente';
       const productionStatus = String(req.body?.production_status || 'cola_espera');
       const dueDate = String(req.body?.due_date || new Date().toISOString().slice(0, 10));
 
-      if (!clientName || !material || !description || unitPriceGtq <= 0) {
+      if (!clientName || !material || !description || unitPriceGtq <= 0 || !Number.isFinite(quantity) || !Number.isFinite(estimatedMinutes)) {
         res.status(400).json({ error: 'Cliente, material, descripción y precio unitario mayor a Q 0.00 son requeridos' });
         return;
       }
 
       const grossTotal = round2(quantity * unitPriceGtq);
-      const { subtotal, iva, total } = computeGuatemalanTotals(grossTotal, docType);
+      if (initialPaymentType === 'advance' && (initialPaymentAmount <= 0 || initialPaymentAmount > grossTotal)) {
+        res.status(400).json({ error: 'El anticipo debe ser mayor a Q 0.00 y no superar el total de la orden' });
+        return;
+      }
+      const { subtotal, iva, total } = computeGuatemalanTotals(grossTotal);
 
       const countRow = await db.queryOne<{ max_id: number }>('SELECT COALESCE(MAX(id), 0) AS max_id FROM work_orders');
       const nextNum = Number(countRow?.max_id || 0) + 140;
       const orderCode = `OP-2026-${String(nextNum).padStart(4, '0')}`;
-      const satSeries = docType === 'factura_sat' ? 'A1B2' : null;
-      const satNumber = docType === 'factura_sat' ? String(481920 + nextNum).padStart(8, '0') : null;
+      const satSeries = null;
+      const satNumber = null;
 
       const insertRes = await db.run(
         `INSERT INTO work_orders (
@@ -735,11 +838,19 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
           subtotal,
           iva,
           total,
-          paymentStatus,
+          'pendiente',
           new Date().toISOString().slice(0, 10),
           req.user?.id || null,
         ]
       );
+      if (initialPaymentType !== 'none') {
+        await recordOrderPayment(
+          db,
+          { id: insertRes.lastInsertRowid, order_code: orderCode, client_name: clientName, client_nit: clientNit, process_type: processType, total_gtq: total, payment_status: paymentStatus },
+          { type: initialPaymentType, status: initialPaymentStatus, amount: initialPaymentAmount },
+          req.user?.id || null
+        );
+      }
 
       // If assigned machine and status is active, reflect on machine
       if (machineId && (productionStatus === 'en_produccion' || productionStatus === 'calentando')) {
@@ -760,6 +871,39 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
     }
   });
 
+  app.post('/api/orders/:id/payments', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const id = Number(req.params.id);
+      const order = await db.queryOne<OrderPaymentOrder & { deleted_at?: string | null }>(
+        'SELECT id, order_code, client_name, client_nit, process_type, total_gtq, payment_status, deleted_at FROM work_orders WHERE id = ?',
+        [id]
+      );
+      if (!order || order.deleted_at) {
+        res.status(404).json({ error: 'Orden no encontrada o borrada' });
+        return;
+      }
+      const type = req.body?.type === 'full' ? 'full' : req.body?.type === 'advance' ? 'advance' : null;
+      const status = req.body?.status === 'pendiente' ? 'pendiente' : req.body?.status === 'cobrado' ? 'cobrado' : null;
+      if (!type || !status) {
+        res.status(400).json({ error: 'Seleccione un tipo de pago y un estado válido' });
+        return;
+      }
+      const result = await recordOrderPayment(
+        db,
+        order,
+        { type, status, amount: req.body?.amount === undefined ? undefined : Number(req.body.amount) },
+        req.user?.id || null
+      );
+      const updatedOrder = result.order;
+      res.status(201).json({
+        order: req.user?.role === 'operator' && updatedOrder ? hideFinancialOrderFields(updatedOrder) : updatedOrder,
+        payment: result.payment,
+      });
+    } catch (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : 'Error registrando pago' });
+    }
+  });
+
   app.patch('/api/orders/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = Number(req.params.id);
@@ -773,15 +917,9 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
       const productionStatus = req.body?.production_status
         ? String(req.body.production_status)
         : String(existing.production_status);
-      const paymentStatus =
-        canEditFinancialFields && req.body?.payment_status
-          ? String(req.body.payment_status)
-          : String(existing.payment_status);
+      const paymentStatus = String(existing.payment_status);
       const machineId = req.body?.machine_id !== undefined ? req.body.machine_id : existing.machine_id;
-      const docType =
-        canEditFinancialFields && (req.body?.doc_type === 'comprobante_taller' || req.body?.doc_type === 'factura_sat')
-          ? (req.body.doc_type as 'factura_sat' | 'comprobante_taller')
-          : (String(existing.doc_type) as 'factura_sat' | 'comprobante_taller');
+      const docType = 'comprobante_taller';
 
       const quantity =
         canEditFinancialFields && req.body?.quantity !== undefined
@@ -792,12 +930,9 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
           ? round2(Math.max(0.01, Number(req.body.unit_price_gtq)))
           : Number(existing.unit_price_gtq);
 
-      const { subtotal, iva, total } = computeGuatemalanTotals(round2(quantity * unitPriceGtq), docType);
-      const satSeries = docType === 'factura_sat' ? (existing.sat_series || 'A1B2') : null;
-      const satNumber =
-        docType === 'factura_sat'
-          ? existing.sat_number || String(481920 + id).padStart(8, '0')
-          : null;
+      const { subtotal, iva, total } = computeGuatemalanTotals(round2(quantity * unitPriceGtq));
+      const satSeries = null;
+      const satNumber = null;
 
       await db.run(
         `UPDATE work_orders
@@ -819,14 +954,6 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
           total,
           id,
         ]
-      );
-
-      // Sync financial entry
-      await db.run(
-        `UPDATE financial_entries
-         SET status = ?, doc_type = ?, subtotal_gtq = ?, iva_gtq = ?, total_gtq = ?
-         WHERE order_code = ?`,
-        [paymentStatus, docType, subtotal, iva, total, String(existing.order_code)]
       );
 
       // Update machine state if applicable
@@ -1105,7 +1232,7 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
   app.post('/api/finances', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const entryType = req.body?.entry_type === 'ingreso' ? 'ingreso' : 'egreso';
-      const docType = req.body?.doc_type === 'comprobante_taller' ? 'comprobante_taller' : 'factura_sat';
+      const docType = 'comprobante_taller';
       const category = String(req.body?.category || '').trim();
       const description = String(req.body?.description || '').trim();
       const counterparty = String(req.body?.counterparty || '').trim();
@@ -1120,7 +1247,7 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
         return;
       }
 
-      const { subtotal, iva, total } = computeGuatemalanTotals(grossTotal, docType);
+      const { subtotal, iva, total } = computeGuatemalanTotals(grossTotal);
       const countRow = await db.queryOne<{ max_id: number }>(
         'SELECT COALESCE(MAX(id), 0) AS max_id FROM financial_entries'
       );
@@ -1168,13 +1295,15 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
         return;
       }
 
-      const status = String(req.body?.status || existing.status);
-      const docType =
-        req.body?.doc_type === 'factura_sat' || req.body?.doc_type === 'comprobante_taller'
-          ? (req.body.doc_type as 'factura_sat' | 'comprobante_taller')
-          : (String(existing.doc_type) as 'factura_sat' | 'comprobante_taller');
+      if (existing.order_code) {
+        res.status(409).json({ error: 'Los pagos de una orden se registran desde el detalle de la orden' });
+        return;
+      }
 
-      const { subtotal, iva, total } = computeGuatemalanTotals(Number(existing.total_gtq), docType);
+      const status = String(req.body?.status || existing.status);
+      const docType = 'comprobante_taller';
+
+      const { subtotal, iva, total } = computeGuatemalanTotals(Number(existing.total_gtq));
 
       await db.run(
         'UPDATE financial_entries SET status = ?, doc_type = ?, subtotal_gtq = ?, iva_gtq = ?, total_gtq = ? WHERE id = ?',
@@ -1198,7 +1327,63 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
   app.delete('/api/finances/:id', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = Number(req.params.id);
+      const entry = await db.queryOne<{ order_code: string | null }>(
+        'SELECT order_code FROM financial_entries WHERE id = ?',
+        [id]
+      );
       await deleteFinancialEntry(db, files, id);
+
+      if (entry?.order_code) {
+        const order = await db.queryOne<{ id: number; total_gtq: number; deleted_at: string | null }>(
+          'SELECT id, total_gtq, deleted_at FROM work_orders WHERE order_code = ?',
+          [entry.order_code]
+        );
+        if (order && !order.deleted_at) {
+          const baselineCode = `FIN-${entry.order_code}`;
+          const remainingEntries = await db.queryAll<{ total_gtq: number; status: string }>(
+            'SELECT total_gtq, status FROM financial_entries WHERE order_code = ? AND entry_code <> ?',
+            [entry.order_code, baselineCode]
+          );
+          const allocated = remainingEntries
+            .filter((item) => item.status !== 'anulado')
+            .reduce((sum, item) => sum + Number(item.total_gtq || 0), 0);
+          const outstanding = round2(Math.max(0, Number(order.total_gtq) - allocated));
+          const baseline = await db.queryOne<{ id: number }>(
+            'SELECT id FROM financial_entries WHERE entry_code = ?',
+            [baselineCode]
+          );
+          if (baseline) {
+            await db.run(
+              'UPDATE financial_entries SET subtotal_gtq = ?, iva_gtq = 0, total_gtq = ?, status = ? WHERE id = ?',
+              [outstanding, outstanding, 'pendiente', baseline.id]
+            );
+          } else {
+            const orderInfo = await db.queryOne<{ client_name: string; client_nit: string; process_type: string; description: string; created_by: number | null }>(
+              'SELECT client_name, client_nit, process_type, description, created_by FROM work_orders WHERE id = ?',
+              [order.id]
+            );
+            const category = orderInfo?.process_type === '3d_printing' ? 'Impresión 3D' : orderInfo?.process_type === 'laser' ? 'Corte Láser' : 'Impresión UV DTF';
+            await db.run(
+              `INSERT INTO financial_entries (
+                entry_code, entry_type, doc_type, category, description, counterparty,
+                nit, order_code, subtotal_gtq, iva_gtq, total_gtq, status, entry_date, created_by
+              ) VALUES (?, 'ingreso', 'comprobante_taller', ?, ?, ?, ?, ?, ?, 0, ?, 'pendiente', ?, ?)`,
+              [
+                baselineCode, category, orderInfo?.description || `Saldo de orden ${entry.order_code}`,
+                orderInfo?.client_name || 'Cliente', orderInfo?.client_nit || 'CF', entry.order_code,
+                outstanding, outstanding, new Date().toISOString().slice(0, 10), orderInfo?.created_by || null,
+              ]
+            );
+          }
+          const paid = remainingEntries
+            .filter((item) => item.status === 'cobrado')
+            .reduce((sum, item) => sum + Number(item.total_gtq || 0), 0);
+          await db.run('UPDATE work_orders SET payment_status = ? WHERE id = ?', [
+            paid >= Number(order.total_gtq) ? 'cobrado' : 'pendiente',
+            order.id,
+          ]);
+        }
+      }
       res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Error eliminando movimiento' });

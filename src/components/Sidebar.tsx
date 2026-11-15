@@ -87,7 +87,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="text-[14px] font-semibold tracking-[-0.01em] text-[#0F172A] truncate">
                 PrecisionHub
               </div>
-              <div className="text-[11px] text-[#64748B] truncate">Manufactura & SAT</div>
+              <div className="text-[11px] text-[#64748B] truncate">Manufactura</div>
             </div>
           )}
         </div>

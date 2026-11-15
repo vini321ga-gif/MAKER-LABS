@@ -11,6 +11,7 @@ interface WorkOrdersViewProps {
   docFilter: DocTypeFilter;
   onChangeDocFilter: (next: DocTypeFilter) => void;
   onUpdateOrder: (id: number, payload: Partial<WorkOrder>) => Promise<void>;
+  onRegisterOrderPayment: (id: number, payload: { type: 'advance' | 'full'; status: 'pendiente' | 'cobrado'; amount?: number }) => Promise<unknown>;
   onDeleteOrder: (id: number) => Promise<void>;
   onOpenNewOrder: () => void;
   canDelete: boolean;
@@ -23,6 +24,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
   docFilter,
   onChangeDocFilter,
   onUpdateOrder,
+  onRegisterOrderPayment,
   onDeleteOrder,
   onOpenNewOrder,
   canDelete,
@@ -32,6 +34,11 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
   const [processFilter, setProcessFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
+  const [paymentType, setPaymentType] = useState<'advance' | 'full'>('advance');
+  const [paymentStatus, setPaymentStatus] = useState<'pendiente' | 'cobrado'>('cobrado');
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentBusy, setPaymentBusy] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
   const [showDeleted, setShowDeleted] = useState(false);
 
   const visibleOrders = showDeleted ? [...orders, ...deletedOrders] : orders;
@@ -44,7 +51,6 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
       !q ||
       o.order_code.toLowerCase().includes(q) ||
       o.client_name.toLowerCase().includes(q) ||
-      o.client_nit.toLowerCase().includes(q) ||
       o.description.toLowerCase().includes(q) ||
       o.material.toLowerCase().includes(q);
     return matchesDoc && matchesProc && matchesStatus && matchesSearch;
@@ -92,7 +98,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar orden, cliente, NIT..."
+                placeholder="Buscar orden o cliente..."
                 className="stitch-input pl-8 pr-3 w-64"
               />
             </div>
@@ -130,16 +136,14 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-[#F8FAFC] h-10 border-b border-[#E2E8F0]">
-                <th className="px-4 stitch-label-sm">Orden / Doc</th>
-                <th className="px-4 stitch-label-sm">Cliente / NIT</th>
+                <th className="px-4 stitch-label-sm">Orden</th>
+                <th className="px-4 stitch-label-sm">Cliente</th>
                 <th className="px-4 stitch-label-sm">Proceso</th>
                 <th className="px-4 stitch-label-sm">Creada por</th>
                 <th className="px-4 stitch-label-sm">Producción</th>
                 {canViewFinancialDetails && (
                   <>
                     <th className="px-4 stitch-label-sm">Pago</th>
-                    <th className="px-4 stitch-label-sm text-right">Subtotal (Q)</th>
-                    <th className="px-4 stitch-label-sm text-right">IVA (Q)</th>
                     <th className="px-4 stitch-label-sm text-right">Total (Q)</th>
                   </>
                 )}
@@ -149,7 +153,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={canViewFinancialDetails ? 10 : 6} className="px-6 py-12 text-center text-[13px] text-[#64748B]">
+                  <td colSpan={canViewFinancialDetails ? 8 : 6} className="px-6 py-12 text-center text-[13px] text-[#64748B]">
                     No se encontraron órdenes con los criterios actuales.
                   </td>
                 </tr>
@@ -160,19 +164,13 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                       <div className="text-[13px] font-semibold text-[#0F172A] tabular-metrics">
                         {order.order_code}
                       </div>
-                      <div className="text-[11px] text-[#64748B] tabular-metrics">
-                        {order.doc_type === 'factura_sat'
-                          ? `SAT ${order.sat_series || 'A1B2'}-${order.sat_number || ''}`
-                          : 'Comprobante Taller'}
-                      </div>
+
                     </td>
                     <td className="px-4">
                       <div className="text-[13px] font-medium text-[#0F172A] truncate max-w-[200px]">
                         {order.client_name}
                       </div>
-                      <div className="text-[11px] text-[#64748B] tabular-metrics">
-                        NIT: {order.client_nit} · Entrega {order.due_date}
-                      </div>
+
                     </td>
                     <td className="px-4 whitespace-nowrap">
                       <div className="text-[12px] font-medium text-[#1E293B]">
@@ -209,29 +207,8 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                     </td>
                     {canViewFinancialDetails && (
                       <>
-                        <td className="px-4">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onUpdateOrder(order.id, {
-                                payment_status: order.payment_status === 'cobrado' ? 'pendiente' : 'cobrado',
-                              })
-                            }
-                            title="Alternar estado de cobro"
-                            className="cursor-pointer"
-                          >
-                            <StatusPill {...getFinancialStatusBadge(order.payment_status)} />
-                          </button>
-                        </td>
-                        <td className="px-4 text-right text-[13px] text-[#475569] tabular-metrics whitespace-nowrap">
-                          {formatQuetzales(order.subtotal_gtq)}
-                        </td>
-                        <td className="px-4 text-right text-[13px] text-[#64748B] tabular-metrics whitespace-nowrap">
-                          {formatQuetzales(order.iva_gtq)}
-                        </td>
-                        <td className="px-4 text-right text-[13px] font-semibold text-[#0F172A] tabular-metrics whitespace-nowrap">
-                          {formatQuetzales(order.total_gtq)}
-                        </td>
+                        <td className="px-4"><StatusPill {...getFinancialStatusBadge(order.payment_status)} /></td>
+                        <td className="px-4 text-right text-[13px] font-semibold text-[#0F172A] tabular-metrics whitespace-nowrap">{formatQuetzales(order.total_gtq)}</td>
                       </>
                     )}
                     <td className="px-4 text-right whitespace-nowrap">
@@ -267,14 +244,10 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
       {/* Order Detail Modal */}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/40 backdrop-blur-[4px]">
-          <div className="w-full max-w-lg rounded-2xl bg-[#FFFFFF] border border-[#E2E8F0] shadow-[0_20px_25px_-5px_rgba(15,23,42,0.12)] overflow-hidden">
+          <div className="w-full max-w-lg max-h-[92vh] rounded-2xl bg-[#FFFFFF] border border-[#E2E8F0] shadow-[0_20px_25px_-5px_rgba(15,23,42,0.12)] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E8F0]">
               <div>
-                <span className="stitch-label-sm">
-                  {selectedOrder.doc_type === 'factura_sat'
-                    ? `Factura SAT Serie ${selectedOrder.sat_series}-${selectedOrder.sat_number}`
-                    : 'Comprobante Interno de Taller'}
-                </span>
+                <span className="stitch-label-sm">Detalle de orden</span>
                 <h3 className="text-[18px] font-semibold text-[#0F172A] tabular-metrics mt-0.5">
                   Orden {selectedOrder.order_code}
                 </h3>
@@ -288,7 +261,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
               </button>
             </div>
 
-            <div className="p-6 space-y-4 text-[13px]">
+            <div className="p-6 space-y-4 text-[13px] overflow-y-auto">
               <div className="flex items-center justify-between">
                 <StatusPill {...getProductionStatusBadge(selectedOrder.production_status)} />
                 {canViewFinancialDetails && <StatusPill {...getFinancialStatusBadge(selectedOrder.payment_status)} />}
@@ -298,7 +271,6 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                 <div>
                   <div className="stitch-label-sm">Cliente</div>
                   <div className="font-semibold text-[#0F172A] mt-0.5">{selectedOrder.client_name}</div>
-                  <div className="text-[12px] text-[#64748B] tabular-metrics">NIT: {selectedOrder.client_nit}</div>
                 </div>
                 <div>
                   <div className="stitch-label-sm">Producción</div>
@@ -321,20 +293,57 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
               </div>
 
               {canViewFinancialDetails && (
-                <div className="border-t border-[#E2E8F0] pt-3 space-y-1.5 tabular-metrics">
-                  <div className="flex justify-between text-[#64748B]">
-                    <span>Base Imponible</span>
-                    <span>{formatQuetzales(selectedOrder.subtotal_gtq)}</span>
-                  </div>
-                  <div className="flex justify-between text-[#64748B]">
-                    <span>IVA (12% SAT)</span>
-                    <span>{formatQuetzales(selectedOrder.iva_gtq)}</span>
-                  </div>
-                  <div className="flex justify-between text-[16px] font-semibold text-[#0F172A] pt-1 border-t border-[#F1F5F9]">
-                    <span>Total Quetzales</span>
-                    <span>{formatQuetzales(selectedOrder.total_gtq)}</span>
-                  </div>
+                <div className="border-t border-[#E2E8F0] pt-3 flex justify-between text-[16px] font-semibold text-[#0F172A] tabular-metrics">
+                  <span>Total</span><span>{formatQuetzales(selectedOrder.total_gtq)}</span>
                 </div>
+              )}
+              {!selectedOrder.deleted_at && selectedOrder.payment_status !== 'cobrado' && (
+                <form onSubmit={async (event) => {
+                  event.preventDefault();
+                  setPaymentError('');
+                  const amount = Number(paymentAmount);
+                  if (paymentType === 'advance' && (!Number.isFinite(amount) || amount <= 0)) {
+                    setPaymentError('Ingrese un anticipo mayor a Q 0.00');
+                    return;
+                  }
+                  setPaymentBusy(true);
+                  try {
+                    await onRegisterOrderPayment(selectedOrder.id, {
+                      type: paymentType,
+                      status: paymentStatus,
+                      ...(paymentType === 'advance' ? { amount } : {}),
+                    });
+                    setSelectedOrder(null);
+                    setPaymentAmount('');
+                  } catch (error) {
+                    setPaymentError(error instanceof Error ? error.message : 'No se pudo registrar el pago');
+                  } finally {
+                    setPaymentBusy(false);
+                  }
+                }} className="border-t border-[#E2E8F0] pt-4 space-y-3">
+                  <div className="font-semibold text-[#0F172A]">Registrar pago de la orden</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label className="text-[12px] font-medium text-[#1E293B]">Tipo de pago
+                      <select value={paymentType} onChange={(e) => setPaymentType(e.target.value as 'advance' | 'full')} className="stitch-input w-full px-3 mt-1">
+                        <option value="advance">Anticipo</option><option value="full">Pago total</option>
+                      </select>
+                    </label>
+                    <label className="text-[12px] font-medium text-[#1E293B]">Estado
+                      <select value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value as 'pendiente' | 'cobrado')} className="stitch-input w-full px-3 mt-1">
+                        <option value="pendiente">Pendiente</option><option value="cobrado">Pagado</option>
+                      </select>
+                    </label>
+                  </div>
+                  {paymentType === 'advance' && (
+                    <label className="block text-[12px] font-medium text-[#1E293B]">Monto del anticipo (Q)
+                      <input type="number" step="0.01" min="0.01" required value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} className="stitch-input w-full px-3 mt-1 tabular-metrics" />
+                    </label>
+                  )}
+                  {paymentError && <div role="alert" className="text-[12px] text-[#DC2626]">{paymentError}</div>}
+                  <button type="submit" disabled={paymentBusy} className="h-9 px-4 rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] disabled:opacity-60 text-[13px] font-medium text-white cursor-pointer">
+                    {paymentBusy ? 'Registrando...' : paymentType === 'advance' ? 'Registrar anticipo' : 'Registrar pago total'}
+                  </button>
+                </form>
               )}
             </div>
 

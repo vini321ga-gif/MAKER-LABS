@@ -108,10 +108,18 @@ export const api = {
     unit_price_gtq: number;
     doc_type: DocType;
     payment_status: string;
+    initial_payment_type?: 'none' | 'advance' | 'full';
+    initial_payment_status?: 'pendiente' | 'cobrado';
+    initial_payment_amount?: number;
     production_status: string;
     due_date: string;
   }) =>
     request<{ order: WorkOrder }>('/api/orders', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  recordOrderPayment: (id: number, payload: { type: 'advance' | 'full'; status: 'pendiente' | 'cobrado'; amount?: number }) =>
+    request<{ order: WorkOrder; payment: FinancialEntry | null }>(`/api/orders/${id}/payments`, {
       method: 'POST',
       body: JSON.stringify(payload),
     }),

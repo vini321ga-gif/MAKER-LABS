@@ -60,6 +60,7 @@ export default function App() {
 
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [orderModalProcess, setOrderModalProcess] = useState<MachineCategory>('3d_printing');
+  const [orderModalSession, setOrderModalSession] = useState(0);
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
   const [inventoryModalOpen, setInventoryModalOpen] = useState(false);
 
@@ -215,6 +216,7 @@ export default function App() {
 
   const openOrderModal = (process: MachineCategory = '3d_printing') => {
     setOrderModalProcess(process);
+    setOrderModalSession((current) => current + 1);
     setOrderModalOpen(true);
   };
 
@@ -240,6 +242,16 @@ export default function App() {
       </>
     );
   }
+
+  const handleRecordOrderPayment = async (
+    id: number,
+    payload: { type: 'advance' | 'full'; status: 'pendiente' | 'cobrado'; amount?: number }
+  ) => {
+    const result = await api.recordOrderPayment(id, payload);
+    notify('success', payload.type === 'advance' ? 'Anticipo registrado' : 'Pago total registrado');
+    if (user) await loadWorkspaceData(user, docFilter);
+    return result;
+  };
 
   const lowStockCount = inventory.filter((i) => i.stock_qty <= i.min_stock_qty).length;
   const activeOrdersCount = orders.filter((o) => o.production_status !== 'completado').length;
@@ -330,7 +342,7 @@ export default function App() {
               onChangeDocFilter={setDocFilter}
               onNavigate={setActiveSection}
               onOpenNewOrder={() => openOrderModal('3d_printing')}
-              onQuickMarkPaid={(o) => handleUpdateOrder(o.id, { payment_status: 'cobrado' })}
+              onQuickMarkPaid={(o) => void handleRecordOrderPayment(o.id, { type: 'full', status: 'cobrado' }).catch((err) => notify('error', err instanceof Error ? err.message : 'Error registrando pago'))}
               onQuickCompleteOrder={(o) => handleUpdateOrder(o.id, { production_status: 'completado' })}
               canViewBalances={canViewBalances}
               canViewFinancialDetails={canViewFinancialDetails}
@@ -344,6 +356,7 @@ export default function App() {
               canViewFinancialDetails={canViewFinancialDetails}
               onUpdateMachine={handleUpdateMachine}
               onUpdateOrder={handleUpdateOrder}
+              onRegisterOrderPayment={handleRecordOrderPayment}
               onOpenNewOrder={() => openOrderModal('3d_printing')}
             />
           )}
@@ -378,6 +391,7 @@ export default function App() {
               onChangeDocFilter={setDocFilter}
               onUpdateOrder={handleUpdateOrder}
               onDeleteOrder={handleDeleteOrder}
+              onRegisterOrderPayment={handleRecordOrderPayment}
               deletedOrders={deletedOrders}
               onOpenNewOrder={() => openOrderModal('3d_printing')}
               canDelete={user.role === 'admin'}
@@ -414,6 +428,7 @@ export default function App() {
 
       {/* Modals */}
       <OrderModal
+        key={orderModalSession}
         open={orderModalOpen}
         machines={machines}
         initialProcess={orderModalProcess}
