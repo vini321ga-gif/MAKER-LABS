@@ -40,17 +40,97 @@ async function deleteFinancialEntry(db: AppDatabase, files: AppFileBucket | unde
   await db.run('DELETE FROM financial_entries WHERE id = ?', [id]);
 }
 
-function computeGuatemalanTotals(
-  grossTotal: number,
-  docType: 'factura_sat' | 'comprobante_taller'
-): { subtotal: number; iva: number; total: number } {
+function computeGuatemalanTotals(grossTotal: number): { subtotal: number; iva: number; total: number } {
   const total = round2(Math.max(0, grossTotal));
-  if (docType === 'factura_sat') {
-    const subtotal = round2(total / 1.12);
-    const iva = round2(total - subtotal);
-    return { subtotal, iva, total };
-  }
   return { subtotal: total, iva: 0, total };
+}
+
+type OrderPaymentInput = { type: 'advance' | 'full'; status: 'pendiente' | 'cobrado'; amount?: number };
+type OrderPaymentOrder = {
+  id: number;
+  order_code: string;
+  client_name: string;
+  client_nit: string;
+  process_type: string;
+  total_gtq: number;
+  payment_status: string;
+};
+
+async function recordOrderPayment(
+  db: AppDatabase,
+  order: OrderPaymentOrder,
+  input: OrderPaymentInput,
+  userId: number | null
+): Promise<{ order: Record<string, unknown> | null; payment: Record<string, unknown> | null }> {
+  const baselineCode = `FIN-${order.order_code}`;
+  const baseline = await db.queryOne<{ id: number; total_gtq: number; status: string }>(
+    'SELECT id, total_gtq, status FROM financial_entries WHERE entry_code = ?',
+    [baselineCode]
+  );
+  const payments = await db.queryAll<{ id: number; total_gtq: number; status: string }>(
+    'SELECT id, total_gtq, status FROM financial_entries WHERE order_code = ? AND entry_code <> ?',
+    [order.order_code, baselineCode]
+  );
+  const total = round2(Number(order.total_gtq) || 0);
+  const legacyPaidBaseline = Boolean(baseline && baseline.status === 'cobrado' && Number(baseline.total_gtq) > 0 && payments.length === 0);
+  let outstanding = baseline
+    ? round2(Math.max(0, Number(baseline.total_gtq) || 0))
+    : round2(Math.max(0, total - payments.reduce((sum, payment) => sum + Number(payment.total_gtq || 0), 0)));
+  if (legacyPaidBaseline) outstanding = 0;
+
+  if (input.type === 'advance') {
+    const amount = round2(Number(input.amount));
+    if (!Number.isFinite(amount) || amount <= 0 || amount > outstanding) {
+      throw new Error('El anticipo debe ser mayor a Q 0.00 y no superar el saldo pendiente de la orden');
+    }
+    outstanding = round2(outstanding - amount);
+  } else if (input.type !== 'full') {
+    throw new Error('Tipo de pago no válido');
+  }
+
+  if (input.type === 'full' && input.status === 'cobrado') {
+    await db.run(
+      'UPDATE financial_entries SET status = ? WHERE order_code = ? AND entry_code <> ? AND status = ?',
+      ['cobrado', order.order_code, baselineCode, 'pendiente']
+    );
+  }
+
+  if (baseline) {
+    await db.run(
+      'UPDATE financial_entries SET subtotal_gtq = ?, iva_gtq = 0, total_gtq = ?, status = ? WHERE id = ?',
+      [outstanding, outstanding, 'pendiente', baseline.id]
+    );
+  }
+
+  const amountToRecord = input.type === 'advance' ? round2(Number(input.amount)) : input.status === 'cobrado' ? outstanding : outstanding;
+  let payment: Record<string, unknown> | null = null;
+  if (amountToRecord > 0) {
+    const paymentCode = `FIN-${order.order_code}-PAY-${randomUUID().slice(0, 8).toUpperCase()}`;
+    const processLabel = order.process_type === '3d_printing' ? 'Impresión 3D' : order.process_type === 'laser' ? 'Corte Láser' : 'Impresión UV DTF';
+    const paymentDescription = input.type === 'advance' ? `Anticipo de orden ${order.order_code}` : `Pago total de orden ${order.order_code}`;
+    const inserted = await db.run(
+      `INSERT INTO financial_entries (
+        entry_code, entry_type, doc_type, category, description, counterparty,
+        nit, order_code, subtotal_gtq, iva_gtq, total_gtq, status, entry_date, created_by
+      ) VALUES (?, 'ingreso', 'comprobante_taller', ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+      [
+        paymentCode, processLabel, paymentDescription, order.client_name, order.client_nit || 'CF',
+        order.order_code, amountToRecord, amountToRecord, input.status,
+        new Date().toISOString().slice(0, 10), userId,
+      ]
+    );
+    payment = await db.queryOne<Record<string, unknown>>('SELECT * FROM financial_entries WHERE id = ?', [inserted.lastInsertRowid]);
+  }
+
+  const refreshed = await db.queryAll<{ total_gtq: number; status: string }>(
+    'SELECT total_gtq, status FROM financial_entries WHERE order_code = ? AND entry_code <> ?',
+    [order.order_code, baselineCode]
+  );
+  const paidTotal = refreshed.reduce((sum, entry) => sum + (entry.status === 'cobrado' ? Number(entry.total_gtq || 0) : 0), legacyPaidBaseline ? total : 0);
+  const nextStatus = paidTotal >= total ? 'cobrado' : 'pendiente';
+  await db.run('UPDATE work_orders SET payment_status = ? WHERE id = ?', [nextStatus, order.id]);
+  const updatedOrder = await db.queryOne<Record<string, unknown>>('SELECT * FROM work_orders WHERE id = ?', [order.id]);
+  return { order: updatedOrder, payment };
 }
 
 function hideFinancialOrderFields(order: Record<string, unknown>): Record<string, unknown> {
