@@ -304,7 +304,7 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
     app.get(
       '/api/finances/:entryId/attachments/:attachmentId',
       requireAuth,
-      requireRole('admin', 'finance'),
+      requireRole('admin'),
       async (req: AuthenticatedRequest, res: Response) => {
         try {
           const attachment = await db.queryOne<{
@@ -457,7 +457,7 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
       const docTypeFilter = String(req.query.doc_type || 'all');
       const hasDocFilter = docTypeFilter === 'factura_sat' || docTypeFilter === 'comprobante_taller';
 
-      const canViewBalances = req.user?.role === 'admin';
+      const canViewBalances = req.user?.role !== 'operator';
       const entries = canViewBalances
         ? hasDocFilter
           ? await db.queryAll<Record<string, unknown>>(
@@ -492,10 +492,10 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
 
       const orders = hasDocFilter
         ? await db.queryAll<Record<string, unknown>>(
-            'SELECT * FROM work_orders WHERE doc_type = ? ORDER BY id DESC',
+            'SELECT * FROM work_orders WHERE deleted_at IS NULL AND doc_type = ? ORDER BY id DESC',
             [docTypeFilter]
           )
-        : await db.queryAll<Record<string, unknown>>('SELECT * FROM work_orders ORDER BY id DESC');
+        : await db.queryAll<Record<string, unknown>>('SELECT * FROM work_orders WHERE deleted_at IS NULL ORDER BY id DESC');
 
       const machines = await db.queryAll<Record<string, unknown>>(
         'SELECT * FROM machines ORDER BY category ASC, id ASC'
@@ -638,9 +638,13 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
         params.push(like, like, like, like, like);
       }
 
+      conditions.push('deleted_at IS NULL');
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
       const orders = await db.queryAll<Record<string, unknown>>(
-        `SELECT * FROM work_orders ${whereClause} ORDER BY id DESC`,
+        `SELECT work_orders.*, creator.name AS created_by_name
+         FROM work_orders
+         LEFT JOIN users creator ON creator.id = work_orders.created_by
+         ${whereClause} ORDER BY work_orders.id DESC`,
         params
       );
       res.json({
@@ -850,20 +854,46 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
     }
   });
 
-  app.delete('/api/orders/:id', requireAuth, requireRole('admin', 'finance'), async (req: AuthenticatedRequest, res: Response) => {
+  app.get('/api/orders/deleted', requireAuth, requireRole('admin', 'finance'), async (_req: AuthenticatedRequest, res: Response) => {
+    try {
+      const orders = await db.queryAll<Record<string, unknown>>(
+        `SELECT work_orders.*, creator.name AS created_by_name
+         FROM work_orders
+         LEFT JOIN users creator ON creator.id = work_orders.created_by
+         WHERE work_orders.deleted_at IS NOT NULL
+         ORDER BY work_orders.deleted_at DESC, work_orders.id DESC`
+      );
+      res.json({ orders });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Error consultando órdenes eliminadas' });
+    }
+  });
+
+  app.delete('/api/orders/:id', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = Number(req.params.id);
-      const existing = await db.queryOne<{ order_code: string }>('SELECT order_code FROM work_orders WHERE id = ?', [id]);
+      const existing = await db.queryOne<{ order_code: string; deleted_at: string | null }>(
+        'SELECT order_code, deleted_at FROM work_orders WHERE id = ?',
+        [id]
+      );
       if (!existing) {
         res.status(404).json({ error: 'Orden no encontrada' });
         return;
       }
-      const linkedEntries = await db.queryAll<{ id: number }>(
-        'SELECT id FROM financial_entries WHERE order_code = ?',
+      if (existing.deleted_at) {
+        res.status(409).json({ error: 'La orden ya estaba marcada como borrada' });
+        return;
+      }
+      await db.run(
+        `UPDATE work_orders
+         SET deleted_at = datetime('now'), deleted_by = ?, deleted_by_name = ?, payment_status = 'anulado'
+         WHERE id = ? AND deleted_at IS NULL`,
+        [req.user?.id || null, req.user?.name || 'Administrador', id]
+      );
+      await db.run(
+        `UPDATE financial_entries SET status = 'anulado' WHERE order_code = ?`,
         [existing.order_code]
       );
-      for (const entry of linkedEntries) await deleteFinancialEntry(db, files, entry.id);
-      await db.run('DELETE FROM work_orders WHERE id = ?', [id]);
       res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Error eliminando orden' });
@@ -1024,7 +1054,10 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
 
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
       const entries = await db.queryAll<Record<string, unknown>>(
-        `SELECT * FROM financial_entries ${whereClause} ORDER BY entry_date DESC, id DESC`,
+        `SELECT financial_entries.*, creator.name AS created_by_name
+         FROM financial_entries
+         LEFT JOIN users creator ON creator.id = financial_entries.created_by
+         ${whereClause} ORDER BY financial_entries.entry_date DESC, financial_entries.id DESC`,
         params
       );
 
@@ -1051,7 +1084,7 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
 
       res.json({
         summary:
-          req.user?.role === 'admin'
+          req.user?.role !== 'operator'
             ? {
                 collectedGtq: round2(collectedGtq),
                 pendingGtq: round2(pendingGtq),
@@ -1162,7 +1195,7 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
     }
   });
 
-  app.delete('/api/finances/:id', requireAuth, requireRole('admin', 'finance'), async (req: AuthenticatedRequest, res: Response) => {
+  app.delete('/api/finances/:id', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = Number(req.params.id);
       await deleteFinancialEntry(db, files, id);

@@ -52,6 +52,7 @@ export default function App() {
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null);
   const [machines, setMachines] = useState<Machine[]>([]);
   const [orders, setOrders] = useState<WorkOrder[]>([]);
+  const [deletedOrders, setDeletedOrders] = useState<WorkOrder[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [finances, setFinances] = useState<FinancesPayload | null>(null);
   const [dbStatus, setDbStatus] = useState<DbStatusPayload | null>(null);
@@ -80,18 +81,22 @@ export default function App() {
     async (currentUser: User, currentDocFilter: DocTypeFilter) => {
       setLoadingData(true);
       try {
-        const [dashRes, machRes, ordRes, invRes, finRes] = await Promise.all([
+        const [dashRes, machRes, ordRes, invRes, finRes, deletedRes] = await Promise.all([
           api.getDashboard(currentDocFilter),
           api.getMachines(),
           api.getOrders(),
           api.getInventory(),
           api.getFinances(),
+          currentUser.role === 'admin' || currentUser.role === 'finance'
+            ? api.getDeletedOrders()
+            : Promise.resolve({ orders: [] as WorkOrder[] }),
         ]);
         const dbRes = currentUser.role === 'admin' ? await api.getDbStatus() : null;
 
         setDashboard(dashRes);
         setMachines(machRes.machines);
         setOrders(ordRes.orders);
+        setDeletedOrders(deletedRes.orders);
         setInventory(invRes.items);
         setFinances(finRes);
         setDbStatus(dbRes);
@@ -239,7 +244,7 @@ export default function App() {
   const lowStockCount = inventory.filter((i) => i.stock_qty <= i.min_stock_qty).length;
   const activeOrdersCount = orders.filter((o) => o.production_status !== 'completado').length;
   const canFinanceEdit = user.role === 'admin' || user.role === 'finance';
-  const canViewBalances = user.role === 'admin';
+  const canViewBalances = user.role !== 'operator';
   const canViewFinancialDetails = user.role !== 'operator';
   const canRegisterFinancialEntries = true;
 
@@ -373,8 +378,9 @@ export default function App() {
               onChangeDocFilter={setDocFilter}
               onUpdateOrder={handleUpdateOrder}
               onDeleteOrder={handleDeleteOrder}
+              deletedOrders={deletedOrders}
               onOpenNewOrder={() => openOrderModal('3d_printing')}
-              canDelete={canFinanceEdit}
+              canDelete={user.role === 'admin'}
               canViewFinancialDetails={canViewFinancialDetails}
             />
           )}
@@ -388,6 +394,7 @@ export default function App() {
               onDeleteEntry={handleDeleteFinancialEntry}
               onOpenNewEntry={() => setExpenseModalOpen(true)}
               canEdit={canFinanceEdit}
+              canDelete={user.role === 'admin'}
               canCreate={canRegisterFinancialEntries}
               canViewBalances={canViewBalances}
             />

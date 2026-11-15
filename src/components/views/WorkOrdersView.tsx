@@ -7,6 +7,7 @@ import { getFinancialStatusBadge, getProductionStatusBadge, StatusPill } from '.
 
 interface WorkOrdersViewProps {
   orders: WorkOrder[];
+  deletedOrders: WorkOrder[];
   docFilter: DocTypeFilter;
   onChangeDocFilter: (next: DocTypeFilter) => void;
   onUpdateOrder: (id: number, payload: Partial<WorkOrder>) => Promise<void>;
@@ -18,6 +19,7 @@ interface WorkOrdersViewProps {
 
 export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
   orders,
+  deletedOrders,
   docFilter,
   onChangeDocFilter,
   onUpdateOrder,
@@ -30,8 +32,10 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
   const [processFilter, setProcessFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
+  const [showDeleted, setShowDeleted] = useState(false);
 
-  const filtered = orders.filter((o) => {
+  const visibleOrders = showDeleted ? [...orders, ...deletedOrders] : orders;
+  const filtered = visibleOrders.filter((o) => {
     const matchesDoc = docFilter === 'all' || o.doc_type === docFilter;
     const matchesProc = processFilter === 'all' || o.process_type === processFilter;
     const matchesStatus = statusFilter === 'all' || o.production_status === statusFilter;
@@ -58,6 +62,15 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
 
         <div className="flex flex-wrap items-center gap-3">
           <QuetzalSwitcher value={docFilter} onChange={onChangeDocFilter} />
+          {deletedOrders.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowDeleted((value) => !value)}
+              className="h-9 px-3 rounded-lg border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] text-[13px] font-medium text-[#475569] cursor-pointer"
+            >
+              {showDeleted ? 'Ocultar borradas' : 'Ver borradas'}
+            </button>
+          )}
           <button
             type="button"
             onClick={onOpenNewOrder}
@@ -120,6 +133,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                 <th className="px-4 stitch-label-sm">Orden / Doc</th>
                 <th className="px-4 stitch-label-sm">Cliente / NIT</th>
                 <th className="px-4 stitch-label-sm">Proceso</th>
+                <th className="px-4 stitch-label-sm">Creada por</th>
                 <th className="px-4 stitch-label-sm">Producción</th>
                 {canViewFinancialDetails && (
                   <>
@@ -135,13 +149,13 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={canViewFinancialDetails ? 9 : 5} className="px-6 py-12 text-center text-[13px] text-[#64748B]">
+                  <td colSpan={canViewFinancialDetails ? 10 : 6} className="px-6 py-12 text-center text-[13px] text-[#64748B]">
                     No se encontraron órdenes con los criterios actuales.
                   </td>
                 </tr>
               ) : (
                 filtered.map((order) => (
-                  <tr key={order.id} className="h-[52px] border-b border-[#F1F5F9] hover:bg-[#F8FAFC]">
+                  <tr key={order.id} className={`h-[52px] border-b border-[#F1F5F9] hover:bg-[#F8FAFC] ${order.deleted_at ? 'bg-[#FFF7ED]' : ''}`}>
                     <td className="px-4 whitespace-nowrap">
                       <div className="text-[13px] font-semibold text-[#0F172A] tabular-metrics">
                         {order.order_code}
@@ -168,7 +182,14 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                         {order.quantity} pzs · {formatMinutes(order.estimated_minutes)}
                       </div>
                     </td>
+                    <td className="px-4 text-[12px] text-[#475569] whitespace-nowrap">{order.created_by_name || 'Usuario no disponible'}</td>
                     <td className="px-4">
+                      {order.deleted_at ? (
+                        <div>
+                          <div className="text-[12px] font-semibold text-[#B45309]">Borrada</div>
+                          <div className="text-[11px] text-[#64748B]">Por {order.deleted_by_name || 'Administrador'} · {order.deleted_at}</div>
+                        </div>
+                      ) : (
                       <select
                         value={order.production_status}
                         onChange={(e) =>
@@ -184,6 +205,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                         <option value="completado">Completado</option>
                         <option value="mantenimiento">Mantenimiento</option>
                       </select>
+                      )}
                     </td>
                     {canViewFinancialDetails && (
                       <>
@@ -222,7 +244,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                         >
                           <Eye className="h-3.5 w-3.5" />
                         </button>
-                        {canDelete && (
+                        {canDelete && !order.deleted_at && (
                           <button
                             type="button"
                             onClick={() => onDeleteOrder(order.id)}

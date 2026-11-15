@@ -222,7 +222,7 @@ export const AdminD1View: React.FC<AdminD1ViewProps> = ({
                 className="stitch-input px-3"
               >
                 <option value="operator">Operador de Planta</option>
-                <option value="finance">Finanzas y SAT</option>
+                <option value="finance">Supervisor</option>
                 <option value="admin">Director / Admin</option>
               </select>
               <button
@@ -260,7 +260,7 @@ export const AdminD1View: React.FC<AdminD1ViewProps> = ({
                         >
                           <option value="admin">Director / Admin</option>
                           <option value="operator">Operador de Planta</option>
-                          <option value="finance">Finanzas y SAT</option>
+                          <option value="finance">Supervisor</option>
                         </select>
                       </td>
                       <td className="px-4 text-right text-[12px] text-[#64748B] tabular-metrics">

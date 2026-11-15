@@ -95,6 +95,7 @@ export const api = {
     const qs = q.toString();
     return request<{ orders: WorkOrder[] }>(`/api/orders${qs ? `?${qs}` : ''}`);
   },
+  getDeletedOrders: () => request<{ orders: WorkOrder[] }>('/api/orders/deleted'),
   createOrder: (payload: {
     client_name: string;
     client_nit: string;

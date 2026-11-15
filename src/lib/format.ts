@@ -55,7 +55,7 @@ export function formatRoleLabel(role: UserRole): string {
     case 'operator':
       return 'Operador de Planta';
     case 'finance':
-      return 'Finanzas y SAT';
+      return 'Supervisor';
   }
 }
 

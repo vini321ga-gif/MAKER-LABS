@@ -14,6 +14,7 @@ interface FinancesViewProps {
   onDeleteEntry: (id: number) => Promise<void>;
   onOpenNewEntry: () => void;
   canEdit: boolean;
+  canDelete: boolean;
   canCreate: boolean;
   canViewBalances: boolean;
 }
@@ -26,6 +27,7 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
   onDeleteEntry,
   onOpenNewEntry,
   canEdit,
+  canDelete,
   canCreate,
   canViewBalances,
 }) => {
@@ -271,6 +273,7 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
                 <th className="px-4 stitch-label-sm text-right">Base (Q)</th>
                 <th className="px-4 stitch-label-sm text-right">IVA (Q)</th>
                 <th className="px-4 stitch-label-sm text-right">Total (Q)</th>
+                <th className="px-4 stitch-label-sm">Registrado por</th>
                 {canEdit && <th className="px-4 stitch-label-sm text-right">Acciones</th>}
               </tr>
             </thead>
@@ -316,6 +319,7 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
                     {entry.entry_type === 'egreso' ? '-' : ''}
                     {formatQuetzales(entry.total_gtq)}
                   </td>
+                  <td className="px-4 text-[12px] text-[#475569] whitespace-nowrap">{entry.created_by_name || 'Usuario no disponible'}</td>
                   {canEdit && (
                     <td className="px-4 text-right whitespace-nowrap">
                       <div className="inline-flex items-center gap-1">
@@ -339,6 +343,7 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
                             Cobrar
                           </button>
                         )}
+                        {canDelete && (
                         <button
                           type="button"
                           onClick={() => onDeleteEntry(entry.id)}
@@ -347,13 +352,14 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
+                        )}
                       </div>
                     </td>
                   )}
                 </tr>
                 {expandedAttachments === entry.id && (
                   <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
-                    <td colSpan={canEdit ? 9 : 8} className="px-5 py-3">
+                    <td colSpan={canEdit ? 10 : 9} className="px-5 py-3">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="text-[12px] text-[#475569]">
                           <span className="font-medium text-[#0F172A]">Documentos de {entry.entry_code}</span>
