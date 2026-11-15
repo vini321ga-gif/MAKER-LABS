@@ -142,7 +142,7 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
         <div>
           <span className="stitch-label-sm">Control de Ingresos y Egresos</span>
           <h2 className="text-[24px] font-semibold tracking-[-0.02em] text-[#0F172A] leading-8 mt-0.5">
-            Facturación, P&L y Libro Contable
+            Ingresos, Egresos y Libro Contable
           </h2>
         </div>
 
