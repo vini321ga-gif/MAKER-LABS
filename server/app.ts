@@ -242,6 +242,21 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
   app.use(express.json({ limit: '1mb' }));
   app.use((req, res, next) => attachAuth(db, req as AuthenticatedRequest, res, next));
 
+  const requirePrimaryAdmin = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const primaryAdmin = await db.queryOne<{ id: number }>(
+        "SELECT id FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1"
+      );
+      if (!req.user || primaryAdmin?.id !== req.user.id) {
+        res.status(403).json({ error: 'Solo la cuenta administradora inicial puede crear usuarios.' });
+        return;
+      }
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+
   // Activity audit (administrator and supervisor)
   app.get('/api/activity', requireAuth, requireRole('admin', 'finance'), async (_req: AuthenticatedRequest, res: Response) => {
     try {
@@ -492,7 +507,7 @@ export function createApiApp(db: AppDatabase, schemaSql: string, files?: AppFile
     }
   });
 
-  app.post('/api/users', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res: Response) => {
+  app.post('/api/users', requireAuth, requireRole('admin'), requirePrimaryAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const email = String(req.body?.email || '').trim().toLowerCase();
       const name = String(req.body?.name || '').trim();
