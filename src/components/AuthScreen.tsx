@@ -162,7 +162,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
               </div>
             </div>
 
-            <div
+            <button
               type="submit"
               disabled={loading}
               className="w-full h-10 rounded-lg bg-[#0F172A] hover:bg-[#1E293B] disabled:opacity-60 text-white text-[13px] font-medium flex items-center justify-center gap-2 transition-colors"
@@ -175,7 +175,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
                     : 'Registrar e Ingresar'}
               </span>
               <ArrowRight className="h-4 w-4" />
-            </div>
+            </button>
           </form>
 
           {mode === 'login' && (
