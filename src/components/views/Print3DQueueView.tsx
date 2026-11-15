@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Box, CheckCircle2, Eye, Flame, Pause, Play, Plus, Trash2, Wrench, X } from 'lucide-react';
 import { formatMinutes, formatQuetzales } from '../../lib/format';
 import type { Machine, MachineStatus, WorkOrder } from '../../types/workshop';
-import { getProductionStatusBadge, StatusPill } from '../StatusPill';
+import { getFinancialStatusBadge, getProductionStatusBadge, StatusPill } from '../StatusPill';
 
 interface Print3DQueueViewProps {
   machines: Machine[];
@@ -308,7 +308,7 @@ export const Print3DQueueView: React.FC<Print3DQueueViewProps> = ({
                 {canViewFinancialDetails && (
                   <div className="mt-3 flex items-center justify-between border-t border-[#E2E8F0] pt-3">
                     <span>Estado de pago</span>
-                    <StatusPill {...getProductionStatusBadge(selectedOrder.payment_status || 'pendiente')} />
+                    <StatusPill {...getFinancialStatusBadge(selectedOrder.payment_status || 'pendiente')} />
                   </div>
                 )}
                 {canViewFinancialDetails && selectedOrder.total_gtq !== undefined && (
