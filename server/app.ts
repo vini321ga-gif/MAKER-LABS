@@ -67,8 +67,8 @@ async function recordOrderPayment(
     'SELECT id, total_gtq, status FROM financial_entries WHERE entry_code = ?',
     [baselineCode]
   );
-  const payments = await db.queryAll<{ id: number; total_gtq: number; status: string }>(
-    'SELECT id, total_gtq, status FROM financial_entries WHERE order_code = ? AND entry_code <> ?',
+  const payments = await db.queryAll<{ id: number; total_gtq: number; status: string; description: string }>(
+    'SELECT id, total_gtq, status, description FROM financial_entries WHERE order_code = ? AND entry_code <> ? ORDER BY id ASC',
     [order.order_code, baselineCode]
   );
   const total = round2(Number(order.total_gtq) || 0);
@@ -79,7 +79,15 @@ async function recordOrderPayment(
   if (legacyPaidBaseline) outstanding = 0;
 
   let amountToRecord = outstanding;
-  if (input.type === 'advance') {
+  const existingAdvance = input.type === 'advance' && input.status === 'cobrado'
+    ? payments.find((payment) => payment.status === 'pendiente'
+      && payment.description.startsWith(`Anticipo de orden ${order.order_code}`)
+      && round2(Number(payment.total_gtq)) === round2(Number(input.amount)))
+    : undefined;
+  if (existingAdvance) {
+    amountToRecord = 0;
+    await db.run('UPDATE financial_entries SET status = ? WHERE id = ?', ['cobrado', existingAdvance.id]);
+  } else if (input.type === 'advance') {
     amountToRecord = round2(Number(input.amount));
     if (!Number.isFinite(amountToRecord) || amountToRecord <= 0 || amountToRecord > outstanding) {
       throw new Error('El anticipo debe ser mayor a Q 0.00 y no superar el saldo pendiente de la orden');
@@ -105,7 +113,9 @@ async function recordOrderPayment(
     );
   }
 
-  let payment: Record<string, unknown> | null = null;
+  let payment: Record<string, unknown> | null = existingAdvance
+    ? await db.queryOne<Record<string, unknown>>('SELECT * FROM financial_entries WHERE id = ?', [existingAdvance.id])
+    : null;
   if (amountToRecord > 0) {
     const paymentCode = `FIN-${order.order_code}-PAY-${randomUUID().slice(0, 8).toUpperCase()}`;
     const processLabel = order.process_type === '3d_printing' ? 'Impresión 3D' : order.process_type === 'laser' ? 'Corte Láser' : 'Impresión UV DTF';
