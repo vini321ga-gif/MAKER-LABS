@@ -106,6 +106,26 @@ export const QuotesView: React.FC = () => {
     setQuote(null);
   };
 
+  const handlePrint = () => {
+    if (!quote) return;
+
+    const originalTitle = document.title;
+    const clientName = quote.clientName
+      .replace(/[<>:"\/\\|?*]/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    document.title = `Cotización - ${clientName || 'Cliente'} - Maker Labs`;
+
+    const restoreTitle = () => {
+      document.title = originalTitle;
+      window.removeEventListener('afterprint', restoreTitle);
+    };
+
+    window.addEventListener('afterprint', restoreTitle);
+    window.print();
+  };
+
   return (
     <div className="space-y-6">
       <div className="quote-no-print flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -274,7 +294,7 @@ export const QuotesView: React.FC = () => {
             <h3 className="text-[16px] font-semibold text-[#0F172A]">Vista previa</h3>
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={handlePrint}
               className="h-9 px-3 rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-[13px] font-medium inline-flex items-center gap-2 cursor-pointer"
             >
               <Printer className="h-4 w-4" />
