@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { FileText, Plus, Printer, RotateCcw, Trash2 } from 'lucide-react';
 import { formatQuetzales } from '../../lib/format';
 
@@ -45,6 +45,7 @@ const createEmptyDraft = (): QuoteDraft => ({
 });
 
 export const QuotesView: React.FC = () => {
+  const defaultDocumentTitle = useRef(document.title);
   const [draft, setDraft] = useState<QuoteDraft>(createEmptyDraft);
   const [quote, setQuote] = useState<GeneratedQuote | null>(null);
 
@@ -90,11 +91,14 @@ export const QuotesView: React.FC = () => {
   const handleGenerate = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const now = new Date();
+    const clientName = draft.clientName.trim();
+    const safeClientName = clientName.replace(/[<>:"\\/|?*]/g, '-').replace(/\s+/g, ' ').trim();
+    document.title = `Cotización Maker Labs - ${safeClientName || 'Cliente'}`;
     const quoteNumber = 'COT-' + now.getFullYear() + '-' + String(now.getTime()).slice(-6);
     setQuote({
       quoteNumber,
       date: new Intl.DateTimeFormat('es-GT', { dateStyle: 'long' }).format(now),
-      clientName: draft.clientName.trim(),
+      clientName,
       items,
       total,
       terms: draft.terms.trim(),
@@ -102,6 +106,7 @@ export const QuotesView: React.FC = () => {
   };
 
   const resetQuote = () => {
+    document.title = defaultDocumentTitle.current;
     setDraft(createEmptyDraft());
     setQuote(null);
   };
@@ -123,7 +128,7 @@ export const QuotesView: React.FC = () => {
     };
 
     window.addEventListener('afterprint', restoreTitle);
-    window.print();
+    window.requestAnimationFrame(() => window.print());
   };
 
   return (
