@@ -92,7 +92,7 @@ export const QuotesView: React.FC = () => {
     event.preventDefault();
     const now = new Date();
     const clientName = draft.clientName.trim();
-    const safeClientName = clientName.replace(/[<>:"\\/|?*]/g, '-').replace(/\s+/g, ' ').trim();
+    const safeClientName = clientName.replace(/[<>:"\/\\|?*]/g, '-').replace(/\s+/g, ' ').trim();
     document.title = `Cotización Maker Labs - ${safeClientName || 'Cliente'}`;
     const quoteNumber = 'COT-' + now.getFullYear() + '-' + String(now.getTime()).slice(-6);
     setQuote({
