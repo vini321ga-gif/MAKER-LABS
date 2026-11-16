@@ -111,8 +111,8 @@ export const QuotesView: React.FC = () => {
 
     const originalTitle = document.title;
     const clientName = quote.clientName
-      .replace(/[\\/:*?"<>|]/g, '-')
-      .replace(/\\s+/g, ' ')
+      .replace(/[<>:"\/\\|?*]/g, '-')
+      .replace(/\s+/g, ' ')
       .trim();
 
     document.title = `Cotización - ${clientName || 'Cliente'} - Maker Labs`;
